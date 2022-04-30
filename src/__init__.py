@@ -12,4 +12,4 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 
 logging.basicConfig(level=logging.ERROR)
-LOGGER = logging.getLogger(conf.LOGGER_NAME)
+LOGGER = logging.getLogger()
