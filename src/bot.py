@@ -27,11 +27,11 @@ def stop():
 
 # BOT
 @_DP.message_handler(filters.CommandStart(), state='*')
-async def _send_welcome(message: types.Message, state: FSMContext):
+async def _send_welcome(message: bot_types.Message, state: FSMContext):
     data = await state.get_data()
     if not data:
         await message.answer(emojize("Тута:eyes:"))
-        await message.answer(emojize("Псс придумай мне кличку!"))
+        await message.answer(emojize("Псс придумай мне позывное имя!"))
         await StartQuestion.enter_new_bot_nickname.set()
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
@@ -40,9 +40,9 @@ async def _send_welcome(message: types.Message, state: FSMContext):
 
 
 @_DP.message_handler(state=StartQuestion.enter_new_bot_nickname)
-async def _enter_new_bot_name(message: types.Message, state: FSMContext):
-    async with state.proxy() as proxy:
-        proxy['bot_nickname'] = message.text
+async def _enter_new_bot_name(message: bot_types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['bot_nickname'] = message.text
     await message.answer(emojize("Учти, отныне я буду прислушиваться только к ней:face_with_tongue:"))
     await message.answer(emojize("..."))
     await message.answer(emojize("Ну и наконец перечисли каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
@@ -51,32 +51,47 @@ async def _enter_new_bot_name(message: types.Message, state: FSMContext):
 
 
 @_DP.message_handler(state=StartQuestion.enter_channels)
-async def _enter_channels(message: types.Message, state: FSMContext):
-    async with state.proxy() as proxy:
-        channels = message.text.split(',')
-        proxy['channels'] = channels
-        valid_channels, not_valid_channels = await check_channels_valid(channels)
+async def _enter_channels(message: bot_types.Message, state: FSMContext):
+    channels = list(set(message.text.split(',')))
+    exist_channels, not_exist_channels = await _check_channels_exist(channels)
 
-    await message.answer(emojize("Запомнил:OK_hand:"))
+    if not_exist_channels:
+        await message.answer("Что-то, но не канал:\n"
+                             f"{','.join(not_exist_channels)}\n"
+                             "Существующие каналы:\n"
+                             f"{','.join(exist_channels)}\n"
+                             )
+        await message.answer("Внеси исправления и снова скинь мне!")
+        await message.answer(emojize("Не забудь про запятую:smiling_face_with_horns:"))
+        await message.answer(emojize("А может это вообще не каналы..."))
+        return
+
+    async with state.proxy() as data:
+        data['channels'] = exist_channels
+
+    await message.answer(emojize("Все запомнил:OK_hand:"))
     await state.reset_state(with_data=False)
 
 
 @_DP.message_handler()
-async def _echo(message: types.Message):
+async def _echo(message: bot_types.Message):
     await message.answer("Тах тах не флуди...")
     await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
 
 
-async def check_channels_valid(channels):
-    valid_ch = []
-    not_valid_ch = []
-    for ch in channels:
+# SUPPORT
+async def _check_channels_exist(channels):
+    exist_channels = []
+    not_exist_channels = {}
+    for channel in channels:
         try:
-            _ = await _CLIENT.get_entity(ch)
-            valid_ch.append(ch)
+            if isinstance(await _CLIENT.get_entity(channel), client_types.Channel):
+                exist_channels.append(channel)
+            else:
+                raise ValueError
         except ValueError:
-            not_valid_ch.append(ch)
-    return valid_ch, not_valid_ch
+            not_exist_channels.append(channel)
+    return exist_channels, not_exist_channels
 
 
 # LISTENER
