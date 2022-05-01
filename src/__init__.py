@@ -3,6 +3,8 @@ import conf
 import time
 from emoji import emojize
 import asyncio
+import pymongo
+from bson import ObjectId
 from telethon import TelegramClient, events, types as client_types
 from aiogram import Bot, Dispatcher, executor, filters, types as bot_types
 from aiogram.dispatcher.filters.state import StatesGroup, State
