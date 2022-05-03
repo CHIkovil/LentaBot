@@ -32,7 +32,7 @@ async def _send_welcome(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize("Тута:eyes:"))
         await message.answer(emojize("Перечисли каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
         await message.answer(emojize("Через запятую конечно же."))
-        await StartQuestion.enter_new_bot_nickname.set()
+        await StartQuestion.enter_channels.set()
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
@@ -55,9 +55,9 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
         return
 
     async with state.proxy() as data:
-        data['channels'] = list(exist_channels.keys())
+        data['channel_ids'] = list(exist_channels.keys())
 
-    await _save_new_listen_channels(exist_channels)
+    await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await state.reset_state(with_data=False)
 
@@ -74,10 +74,11 @@ async def _check_channels_exist(channel_urls):
     not_exist_channel_urls = []
     for url in channel_urls:
         try:
-            channel_entity = await _CLIENT.get_entity(url)
-            if isinstance(channel_entity, client_types.Channel):
-                channel_id = channel_entity.id
-                exist_channels[channel_id] = url
+            entity = await _CLIENT.get_entity(url)
+            if isinstance(entity, client_types.Channel):
+                tg_str = '(https://)?(t.me/)?(\s+)?'
+                channel_id = entity.id
+                exist_channels[channel_id] = re.sub(tg_str, '', url)
             else:
                 raise ValueError
         except ValueError:
@@ -94,9 +95,11 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
         for channel_id, channel_url in channels.items():
             channel_bson = [obj async for obj in channels_coll.find({"_id": object_id_from_int(channel_id)})]
             if channel_bson:
-                await channels_coll.update_one({'_id': object_id_from_int(channel_id)}, {'$push': {'user_ids': user_id}})
+                await channels_coll.update_one({'_id': object_id_from_int(channel_id)},
+                                               {'$push': {'user_ids': user_id}})
             else:
-                await channels_coll.insert_one({'_id': object_id_from_int(channel_id), "url": channel_url, 'user_ids': [user_id]})
+                await channels_coll.insert_one(
+                    {'_id': object_id_from_int(channel_id), "url": channel_url, 'user_ids': [user_id]})
     else:
         data = [{'_id': object_id_from_int(id), "url": url, 'user_ids': [user_id]} for id, url in channels.items()]
         await channels_coll.insert_many(data)
