@@ -38,6 +38,11 @@ async def _send_welcome(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
 
 
+@_DP.message_handler(filters.CommandHelp())
+async def _on_help(message: bot_types.Message):
+    await message.answer("Это help")
+
+
 @_DP.message_handler(state=StartQuestion.enter_channels)
 async def _enter_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
@@ -66,6 +71,7 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
 async def _echo(message: bot_types.Message):
     await message.answer("Тах тах не флуди...")
     await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
+    await message.answer("Воспользуйся /help")
 
 
 # SUPPORT
