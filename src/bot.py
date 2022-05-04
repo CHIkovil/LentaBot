@@ -36,6 +36,7 @@ async def _send_welcome(message: bot_types.Message, state: FSMContext):
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
+        await message.answer("Воспользуйся /help.")
 
 
 @_DP.message_handler(filters.CommandHelp())
@@ -60,7 +61,7 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
         return
 
     async with state.proxy() as data:
-        data['channel_ids'] = list(exist_channels.keys())
+        data['channels'] = list(exist_channels.keys())
 
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
@@ -71,7 +72,7 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
 async def _echo(message: bot_types.Message):
     await message.answer("Тах тах не флуди...")
     await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
-    await message.answer("Воспользуйся /help")
+    await message.answer("Воспользуйся /help.")
 
 
 # SUPPORT
@@ -82,9 +83,8 @@ async def _check_channels_exist(channel_urls):
         try:
             entity = await _CLIENT.get_entity(url)
             if isinstance(entity, client_types.Channel):
-                tg_str = '(https://)?(t.me/)?(\s+)?'
-                channel_id = entity.id
-                exist_channels[channel_id] = re.sub(tg_str, '', url)
+                tg_str = r'(https://)?(t.me/)?(\s+)?'
+                exist_channels[entity.id] = re.sub(tg_str, '', url)
             else:
                 raise ValueError
         except ValueError:
@@ -95,40 +95,38 @@ async def _check_channels_exist(channel_urls):
 async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
     client = await _STORAGE.get_client()
     db = client[db_name]
-
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
-        for channel_id, channel_url in channels.items():
-            channel_bson = [obj async for obj in channels_coll.find({"_id": object_id_from_int(channel_id)})]
+        for id, nickname in channels.items():
+            channel_bson = [obj async for obj in channels_coll.find({"id": id})]
             if channel_bson:
-                await channels_coll.update_one({'_id': object_id_from_int(channel_id)},
-                                               {'$push': {'user_ids': user_id}})
+                await channels_coll.update_one({'id': id},
+                                               {'$push': {'users': user_id}})
             else:
                 await channels_coll.insert_one(
-                    {'_id': object_id_from_int(channel_id), "url": channel_url, 'user_ids': [user_id]})
+                    {'id': id, "nickname": nickname, 'users': [user_id]})
     else:
-        data = [{'_id': object_id_from_int(id), "url": url, 'user_ids': [user_id]} for id, url in channels.items()]
+        data = [{'id': id, "nickname": nickname, 'users': [user_id]} for id, nickname in channels.items()]
         await channels_coll.insert_many(data)
 
 
-def object_id_from_int(n):
-    s = str(n)
-    s = '0' * (24 - len(s)) + s
-    return bson.ObjectId(s)
-
-
-def int_from_object_id(obj):
-    return int(str(obj))
-
-
 # LISTENER
-def _run_listener(channel_urls):
-    async def _listen():
-        _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(channel_urls))
-        while not _is_listen_event.is_set():
-            await asyncio.sleep(1)
+async def _run_listener():
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
+    channel_urls = [obj['url'] async for obj in channels_coll.find({})]
+
+    _CLIENT.remove_event_handler()
+    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(channel_urls))
     _CLIENT.loop.run_until_complete(_listen())
+
+
+async def _listen():
+    while not _is_listen_event.is_set():
+        await asyncio.sleep(1)
 
 
 async def _on_new_channel_message():
