@@ -11,8 +11,6 @@ _STORAGE = MongoStorage(db_name=conf.APP_NAME)
 _DP = Dispatcher(_BOT, storage=_STORAGE)
 _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
 
-_is_listen_event = asyncio.Event()
-
 
 def run():
     _CLIENT.start(phone=conf.PHONE)
@@ -24,11 +22,10 @@ def stop():
     _DP.stop_polling()
 
 
-# BOT
-@_DP.message_handler(filters.CommandStart(), state='*')
-async def _send_welcome(message: bot_types.Message, state: FSMContext):
-    data = await state.get_data()
-    if not data:
+# COMMAND
+@_DP.message_handler(commands=['start'], state='*')
+async def _on_start(message: bot_types.Message, state: FSMContext):
+    if not await state.get_data():
         await message.answer(emojize("Тута:eyes:"))
         await message.answer(emojize("Перечисли каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
         await message.answer(emojize("Через запятую конечно же."))
@@ -36,14 +33,44 @@ async def _send_welcome(message: bot_types.Message, state: FSMContext):
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
-        await message.answer("Воспользуйся /help.")
+        await message.answer("Воспользуйся /help")
 
 
-@_DP.message_handler(filters.CommandHelp())
+@_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
     await message.answer("Это help")
 
 
+@_DP.message_handler(commands=['on'], state='*')
+async def _start_tape(message: bot_types.Message, state: FSMContext):
+    if (await state.get_data())['is_listen']:
+        await message.answer(emojize("Как бы лента уже запущена:grinning_face_with_sweat:"))
+    else:
+        async with state.proxy() as data:
+            data['is_listen'] = True
+        await message.answer(emojize("Лента запущена:rocket:"))
+        await _run_listener()
+
+
+@_DP.message_handler(commands=['off'], state='*')
+async def _stop_tape(message: bot_types.Message, state: FSMContext):
+    if (await state.get_data())['is_listen']:
+        async with state.proxy() as data:
+            data['is_listen'] = False
+        await message.answer(emojize("Лента остановлена:stop_sign:"))
+        await _stop_listener()
+    else:
+        await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
+
+
+@_DP.message_handler()
+async def _echo(message: bot_types.Message):
+    await message.answer("Тах тах не флуди...")
+    await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
+    await message.answer("Воспользуйся /help")
+
+
+# STATE
 @_DP.message_handler(state=StartQuestion.enter_channels)
 async def _enter_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
@@ -62,17 +89,11 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
 
     async with state.proxy() as data:
         data['channels'] = list(exist_channels.keys())
+        data['is_listen'] = False
 
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await state.reset_state(with_data=False)
-
-
-@_DP.message_handler()
-async def _echo(message: bot_types.Message):
-    await message.answer("Тах тах не флуди...")
-    await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
-    await message.answer("Воспользуйся /help.")
 
 
 # SUPPORT
@@ -99,8 +120,8 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
 
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
         for id, nickname in channels.items():
-            channel_bson = [obj async for obj in channels_coll.find({"id": id})]
-            if channel_bson:
+            channel_obj = [obj async for obj in channels_coll.find({"id": id})]
+            if channel_obj:
                 await channels_coll.update_one({'id': id},
                                                {'$push': {'users': user_id}})
             else:
@@ -112,30 +133,39 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
 
 
 # LISTENER
+_listen_channels = None
+
+
 async def _run_listener():
     client = await _STORAGE.get_client()
     db = client[conf.APP_NAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    channel_urls = [obj['url'] async for obj in channels_coll.find({})]
-
-    _CLIENT.remove_event_handler()
-    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(channel_urls))
-    _CLIENT.loop.run_until_complete(_listen())
+    _listen_channels = [obj['nickname'] async for obj in channels_coll.find({})]
+    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=_listen_channels))
 
 
-async def _listen():
-    while not _is_listen_event.is_set():
-        await asyncio.sleep(1)
+async def _stop_listener():
+    _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage(chats=_listen_channels))
 
 
-async def _on_new_channel_message():
-    pass
+async def _on_new_channel_message(event: events.NewMessage.Event):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db['users']
+
+    channel_id = abs(10 ** 12 + event.chat_id)
+    listen_users = [obj['personal_channel']
+                    async for obj in users_coll.find({"$and": [{"data.channels": {'$in': [channel_id]}},
+                                                               {"data.is_listen": True}]})]
+
+    if listen_users:
+        for url in listen_users:
+            await _CLIENT.forward_messages(entity=url, messages=event.message)
 
 
 if __name__ == '__main__':
     try:
         run()
     finally:
-        _is_listen_event.set()
         stop()
