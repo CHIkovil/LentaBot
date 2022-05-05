@@ -3,7 +3,8 @@ from src import *
 
 class StartQuestion(StatesGroup):
     enter_new_bot_nickname = State()
-    enter_channels = State()
+    enter_personal_channel = State()
+    enter_initial_listen_channels = State()
 
 
 _BOT = Bot(token=conf.API_BOT_TOKEN)
@@ -27,9 +28,12 @@ def stop():
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         await message.answer(emojize("Тута:eyes:"))
-        await message.answer(emojize("Перечисли каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
-        await message.answer(emojize("Через запятую конечно же."))
-        await StartQuestion.enter_channels.set()
+        await message.answer(emojize("Ну смотри, для начала нужно создать свой ПУБЛИЧНЫЙ канал!"))
+        await message.answer(emojize("Потом добавь @CHIkovil(создателя) "
+                                     "как администратора:smiling_face_with_sunglasses:"))
+        await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей будущей дружбы!"))
+        await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
+        await StartQuestion.enter_personal_channel.set()
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
@@ -48,7 +52,7 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
     else:
         async with state.proxy() as data:
             data['is_listen'] = True
-        await message.answer(emojize("Лента запущена:rocket:"))
+        await message.answer(emojize("Личная лента запущена:rocket:"))
         await _run_listener()
 
 
@@ -57,7 +61,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['is_listen']:
         async with state.proxy() as data:
             data['is_listen'] = False
-        await message.answer(emojize("Лента остановлена:stop_sign:"))
+        await message.answer(emojize("Личная лента остановлена:stop_sign:"))
         await _stop_listener()
     else:
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
@@ -65,19 +69,37 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
-    await message.answer("Тах тах не флуди...")
-    await message.answer(emojize("Мы же тут ленту читаем:oncoming_fist:"))
+    await message.answer("Тах тах не флуди...:oncoming_fist:")
     await message.answer("Воспользуйся /help")
 
 
 # STATE
-@_DP.message_handler(state=StartQuestion.enter_channels)
-async def _enter_channels(message: bot_types.Message, state: FSMContext):
+@_DP.message_handler(state=StartQuestion.enter_personal_channel)
+async def _enter_personal_channel(message: bot_types.Message, state: FSMContext):
+    exist_channels, not_exist_channel_urls = await _check_channels_exist([message.text])
+
+    if not_exist_channel_urls:
+        await message.answer(emojize("Хмм что-то не похоже на канал..."))
+        await message.answer(emojize("Попробуй еще раз!"))
+        return
+
+    async with state.proxy() as data:
+        data['tape_channel'] = list(exist_channels.keys())[0]
+
+    await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
+    await message.answer(emojize("Через запятую конечно же."))
+    await message.answer(emojize("Учти, что некоторые каналы могут запрещать скриншоты и пересылку сообщений."))
+    await message.answer(emojize("С такими мы не дружим."))
+    await StartQuestion.enter_initial_listen_channels.set()
+
+
+@_DP.message_handler(state=StartQuestion.enter_initial_listen_channels)
+async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
     exist_channels, not_exist_channel_urls = await _check_channels_exist(channels)
 
     if not_exist_channel_urls:
-        await message.answer("Что-то, но не канал:\n"
+        await message.answer("Что-то, но не каналы:\n"
                              f"{','.join(not_exist_channel_urls)}\n"
                              "Существующие каналы:\n"
                              f"{','.join(list(exist_channels.values()))}\n"
@@ -93,6 +115,7 @@ async def _enter_channels(message: bot_types.Message, state: FSMContext):
 
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
+    await message.answer("Воспользуйся /help")
     await state.reset_state(with_data=False)
 
 
@@ -104,8 +127,7 @@ async def _check_channels_exist(channel_urls):
         try:
             entity = await _CLIENT.get_entity(url)
             if isinstance(entity, client_types.Channel):
-                tg_str = r'(https://)?(t.me/)?(\s+)?'
-                exist_channels[entity.id] = re.sub(tg_str, '', url)
+                exist_channels[entity.id] = await _filter_telegram_url(url)
             else:
                 raise ValueError
         except ValueError:
@@ -132,6 +154,11 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
         await channels_coll.insert_many(data)
 
 
+async def _filter_telegram_url(url):
+    tg_str = r'(https://)?(t.me/)?(\s+)?'
+    return re.sub(tg_str, '', url)
+
+
 # LISTENER
 _listen_channels = None
 
@@ -155,7 +182,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
     users_coll = db['users']
 
     channel_id = abs(10 ** 12 + event.chat_id)
-    listen_users = [obj['personal_channel']
+    listen_users = [obj['data']['tape_channel']
                     async for obj in users_coll.find({"$and": [{"data.channels": {'$in': [channel_id]}},
                                                                {"data.is_listen": True}]})]
 
