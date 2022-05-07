@@ -28,8 +28,8 @@ def stop():
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         await message.answer(emojize("Тута:eyes:"))
-        await message.answer(emojize("Ну смотри, для начала нужно создать свой ПУБЛИЧНЫЙ канал!"))
-        await message.answer(emojize("Потом добавь @CHIkovil(создателя) "
+        await message.answer(emojize("Ну смотри, для ленты нужно создать свой ПУБЛИЧНЫЙ канал!"))
+        await message.answer(emojize("Потом добавь меня, "
                                      "как администратора:smiling_face_with_sunglasses:"))
         await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей будущей дружбы!"))
         await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
@@ -52,7 +52,7 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
     else:
         async with state.proxy() as data:
             data['is_listen'] = True
-        await message.answer(emojize("Личная лента запущена:rocket:"))
+        await message.answer(emojize(f"Личная лента запущена:rocket:"))
         await _run_listener()
 
 
@@ -61,7 +61,8 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['is_listen']:
         async with state.proxy() as data:
             data['is_listen'] = False
-        await message.answer(emojize("Личная лента остановлена:stop_sign:"))
+        await message.answer(
+                emojize(f"Личная лента остановлена :stop_sign:"))
         await _stop_listener()
     else:
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
@@ -89,7 +90,7 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
     await message.answer(emojize("Через запятую конечно же."))
     await message.answer(emojize("Учти, что некоторые каналы могут запрещать скриншоты и пересылку сообщений."))
-    await message.answer(emojize("С такими мы не дружим."))
+    await message.answer(emojize("С такими мы не дружим:smiling_face_with_horns:"))
     await StartQuestion.enter_initial_listen_channels.set()
 
 
@@ -100,10 +101,12 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 
     if not_exist_channel_urls:
         await message.answer("Что-то, но не каналы:\n"
-                             f"{','.join(not_exist_channel_urls)}\n"
-                             "Существующие каналы:\n"
-                             f"{','.join(list(exist_channels.values()))}\n"
-                             )
+                             f"{','.join(not_exist_channel_urls)}\n")
+        await message.answer("Возможно администратор этих каналов тебя заблочил:loudly_crying_face:")
+        if exist_channels:
+            await message.answer("Существующие каналы:\n"
+                                 f"{','.join(list(exist_channels.values()))}\n")
+
         await message.answer("Внеси исправления и снова скинь мне!")
         await message.answer(emojize("Не забудь про запятую:smiling_face_with_horns:"))
         await message.answer(emojize("А может это вообще не каналы..."))
@@ -113,6 +116,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['channels'] = list(exist_channels.keys())
         data['is_listen'] = False
 
+    await _join_new_listen_channels(channels=exist_channels)
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
@@ -127,12 +131,22 @@ async def _check_channels_exist(channel_urls):
         try:
             entity = await _CLIENT.get_entity(url)
             if isinstance(entity, client_types.Channel):
-                exist_channels[entity.id] = await _filter_telegram_url(url)
+                exist_channels[entity.id] = await _on_telegram_nickname(url)
             else:
                 raise ValueError
         except ValueError:
             not_exist_channel_urls.append(url)
     return exist_channels, not_exist_channel_urls
+
+
+async def _join_new_listen_channels(channels):
+    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel]
+
+    for id, nickname in channels.items():
+        if id not in channel_dialogs:
+            await _CLIENT(JoinChannelRequest(channel=id))
+            # await _CLIENT(UpdateNotifySettingsRequest(peer=id, settings=client_types.InputPeerNotifySettings()))
+            await _CLIENT.edit_folder(id, folder=1)
 
 
 async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
@@ -154,9 +168,13 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
         await channels_coll.insert_many(data)
 
 
-async def _filter_telegram_url(url):
+async def _on_telegram_nickname(url):
     tg_str = r'(https://)?(t.me/)?(\s+)?'
     return re.sub(tg_str, '', url)
+
+
+async def _on_telegram_url(nickname):
+    return f'https://t.me/{nickname}'
 
 
 # LISTENER
@@ -187,8 +205,8 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                                {"data.is_listen": True}]})]
 
     if listen_users:
-        for url in listen_users:
-            await _CLIENT.forward_messages(entity=url, messages=event.message)
+        for channel_id in listen_users:
+            await _CLIENT.forward_messages(entity=channel_id, messages=event.message)
 
 
 if __name__ == '__main__':
