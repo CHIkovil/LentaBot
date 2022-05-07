@@ -29,7 +29,7 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         await message.answer(emojize("Тута:eyes:"))
         await message.answer(emojize("Ну смотри, для ленты нужно создать свой ПУБЛИЧНЫЙ канал!"))
-        await message.answer(emojize("Потом добавь меня, "
+        await message.answer(emojize("Потом добавь меня "
                                      "как администратора:smiling_face_with_sunglasses:"))
         await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей будущей дружбы!"))
         await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
@@ -62,7 +62,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['is_listen'] = False
         await message.answer(
-                emojize(f"Личная лента остановлена :stop_sign:"))
+            emojize(f"Личная лента остановлена :stop_sign:"))
         await _stop_listener()
     else:
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
@@ -70,7 +70,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
-    await message.answer("Тах тах не флуди...:oncoming_fist:")
+    await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
     await message.answer("Воспользуйся /help")
 
 
@@ -116,7 +116,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['channels'] = list(exist_channels.keys())
         data['is_listen'] = False
 
-    await _join_new_listen_channels(channels=exist_channels)
+    await _join_new_listen_channels_to_client(channels=exist_channels)
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
@@ -139,13 +139,16 @@ async def _check_channels_exist(channel_urls):
     return exist_channels, not_exist_channel_urls
 
 
-async def _join_new_listen_channels(channels):
+async def _join_new_listen_channels_to_client(channels):
     channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel]
 
     for id, nickname in channels.items():
         if id not in channel_dialogs:
             await _CLIENT(JoinChannelRequest(channel=id))
-            # await _CLIENT(UpdateNotifySettingsRequest(peer=id, settings=client_types.InputPeerNotifySettings()))
+            await _CLIENT(UpdateNotifySettingsRequest(peer=id,
+                                                      settings=client_types.InputPeerNotifySettings(
+                                                              mute_until=2**31 - 1
+                                                      )))
             await _CLIENT.edit_folder(id, folder=1)
 
 
