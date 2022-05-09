@@ -113,7 +113,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         return
 
     async with state.proxy() as data:
-        data['channels'] = list(exist_channels.keys())
+        data['listen_channels'] = list(exist_channels.keys())
         data['is_listen'] = False
 
     await _join_new_listen_channels_to_client(channels=exist_channels)
@@ -202,14 +202,22 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
     db = client[conf.APP_NAME]
     users_coll = db['users']
 
-    channel_id = abs(10 ** 12 + event.chat_id)
+    listen_channel_id = abs(10 ** 12 + event.chat_id)
     listen_users = [obj['data']['tape_channel']
-                    async for obj in users_coll.find({"$and": [{"data.channels": {'$in': [channel_id]}},
+                    async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
                                                                {"data.is_listen": True}]})]
 
     if listen_users:
-        for channel_id in listen_users:
-            await _CLIENT.forward_messages(entity=channel_id, messages=event.message)
+        for tape_channel_id in listen_users:
+            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL, messages=event.message)
+            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL):
+                async for dialog in _CLIENT.iter_dialogs():
+                    if dialog.name == conf.MAIN_TAPE_CHANNEL:
+                        await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
+                                                   from_chat_id=dialog.id,
+                                                   message_id=message.id)
+                        break
+                break
 
 
 if __name__ == '__main__':
