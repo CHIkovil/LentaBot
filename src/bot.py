@@ -52,7 +52,7 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
     else:
         async with state.proxy() as data:
             data['is_listen'] = True
-        await message.answer(emojize(f"Личная лента запущена:rocket:"))
+        await message.answer(emojize(f"Лента запущена:rocket:"))
         await _run_listener()
 
 
@@ -62,7 +62,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['is_listen'] = False
         await message.answer(
-            emojize(f"Личная лента остановлена :stop_sign:"))
+            emojize(f"Лента остановлена :stop_sign:"))
         await _stop_listener()
     else:
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
@@ -89,7 +89,7 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
 
     await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
     await message.answer(emojize("Через запятую конечно же."))
-    await message.answer(emojize("Учти, что некоторые каналы могут запрещать скриншоты и пересылку сообщений."))
+    await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
     await message.answer(emojize("С такими мы не дружим:smiling_face_with_horns:"))
     await StartQuestion.enter_initial_listen_channels.set()
 
@@ -102,7 +102,6 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     if not_exist_channel_urls:
         await message.answer("Что-то, но не каналы:\n"
                              f"{','.join(not_exist_channel_urls)}\n")
-        await message.answer("Возможно администратор этих каналов тебя заблочил:loudly_crying_face:")
         if exist_channels:
             await message.answer("Существующие каналы:\n"
                                  f"{','.join(list(exist_channels.values()))}\n")
@@ -147,7 +146,7 @@ async def _join_new_listen_channels_to_client(channels):
             await _CLIENT(JoinChannelRequest(channel=id))
             await _CLIENT(UpdateNotifySettingsRequest(peer=id,
                                                       settings=client_types.InputPeerNotifySettings(
-                                                              mute_until=2**31 - 1
+                                                          mute_until=2 ** 31 - 1
                                                       )))
             await _CLIENT.edit_folder(id, folder=1)
 
@@ -209,15 +208,13 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
     if listen_users:
         for tape_channel_id in listen_users:
-            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL, messages=event.message)
-            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL):
-                async for dialog in _CLIENT.iter_dialogs():
-                    if dialog.name == conf.MAIN_TAPE_CHANNEL:
-                        await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
-                                                   from_chat_id=dialog.id,
-                                                   message_id=message.id)
-                        break
-                break
+            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
+            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
+                if message.forward.chat_id == event.chat_id:
+                    await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
+                                               from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
+                                               message_id=message.id)
+                    break
 
 
 if __name__ == '__main__':
