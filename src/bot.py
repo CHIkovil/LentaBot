@@ -1,3 +1,5 @@
+import asyncio
+
 from src import *
 
 
@@ -40,6 +42,17 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
         await message.answer("Воспользуйся /help")
 
 
+@_DP.message_handler(commands=['admin_start'])
+async def _on_admin_start(message: bot_types.Message):
+    if message.from_user.id == (await _CLIENT.get_me(input_peer=True)).user_id:
+        await _reload_listener()
+
+
+@_DP.message_handler(commands=['admin_stop'])
+async def _on_admin_stop():
+    pass
+
+
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
     await message.answer("Это help")
@@ -53,7 +66,6 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
         async with state.proxy() as data:
             data['is_listen'] = True
         await message.answer(emojize(f"Лента запущена:rocket:"))
-        await _run_listener()
 
 
 @_DP.message_handler(commands=['off'], state='*')
@@ -63,7 +75,6 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
             data['is_listen'] = False
         await message.answer(
             emojize(f"Лента остановлена :stop_sign:"))
-        await _stop_listener()
     else:
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
 
@@ -120,6 +131,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
     await state.reset_state(with_data=False)
+    await _reload_listener()
 
 
 # SUPPORT
@@ -171,20 +183,20 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
 
 
 # LISTENER
-_listen_channels = None
-
-
-async def _run_listener():
+async def _reload_listener():
     client = await _STORAGE.get_client()
     db = client[conf.APP_NAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    _listen_channels = [obj['id'] async for obj in channels_coll.find({})]
-    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=_listen_channels))
+    listen_channels = [obj['id'] async for obj in channels_coll.find({})]
 
+    if not listen_channels:
+        return False
 
-async def _stop_listener():
-    _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage(chats=_listen_channels))
+    if _CLIENT.list_event_handlers():
+        _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage())
+
+    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=listen_channels))
 
 
 async def _on_new_channel_message(event: events.NewMessage.Event):
