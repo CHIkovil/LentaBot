@@ -130,7 +130,7 @@ async def _check_channels_exist(channel_urls):
         try:
             entity = await _CLIENT.get_entity(url)
             if isinstance(entity, client_types.Channel):
-                exist_channels[entity.id] = await _on_telegram_nickname(url)
+                exist_channels[entity.id] = url
             else:
                 raise ValueError
         except ValueError:
@@ -139,9 +139,9 @@ async def _check_channels_exist(channel_urls):
 
 
 async def _join_new_listen_channels_to_client(channels):
-    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel]
+    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs() if dialog.is_channel]
 
-    for id, nickname in channels.items():
+    for id, _ in channels.items():
         if id not in channel_dialogs:
             await _CLIENT(JoinChannelRequest(channel=id))
             await _CLIENT(UpdateNotifySettingsRequest(peer=id,
@@ -157,26 +157,17 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
-        for id, nickname in channels.items():
+        for id, _ in channels.items():
             channel_obj = [obj async for obj in channels_coll.find({"id": id})]
             if channel_obj:
                 await channels_coll.update_one({'id': id},
                                                {'$push': {'users': user_id}})
             else:
                 await channels_coll.insert_one(
-                    {'id': id, "nickname": nickname, 'users': [user_id]})
+                    {'id': id, 'users': [user_id]})
     else:
-        data = [{'id': id, "nickname": nickname, 'users': [user_id]} for id, nickname in channels.items()]
+        data = [{'id': id, 'users': [user_id]} for id, _ in channels.items()]
         await channels_coll.insert_many(data)
-
-
-async def _on_telegram_nickname(url):
-    tg_str = r'(https://)?(t.me/)?(\s+)?'
-    return re.sub(tg_str, '', url)
-
-
-async def _on_telegram_url(nickname):
-    return f'https://t.me/{nickname}'
 
 
 # LISTENER
@@ -188,7 +179,7 @@ async def _run_listener():
     db = client[conf.APP_NAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    _listen_channels = [obj['nickname'] async for obj in channels_coll.find({})]
+    _listen_channels = [obj['id'] async for obj in channels_coll.find({})]
     _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=_listen_channels))
 
 
