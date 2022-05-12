@@ -1,5 +1,3 @@
-import logging
-import conf
 import time
 from emoji import emojize
 import asyncio
@@ -17,5 +15,3 @@ from aiogram.utils.callback_data import CallbackData
 from aiogram.contrib.fsm_storage.mongo import MongoStorage
 from aiogram.dispatcher import FSMContext
 
-logging.basicConfig(level=logging.ERROR)
-LOGGER = logging.getLogger(conf.APP_NAME)

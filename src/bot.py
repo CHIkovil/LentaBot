@@ -1,6 +1,5 @@
-import asyncio
-
-from src import *
+from Support import *
+import conf
 
 
 class StartQuestion(StatesGroup):
@@ -19,11 +18,6 @@ def run():
     _CLIENT.start(phone=conf.PHONE)
     _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True)
-
-
-def stop():
-    _CLIENT.disconnect()
-    _DP.stop_polling()
 
 
 # COMMAND
@@ -211,7 +205,5 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
 
 if __name__ == '__main__':
-    try:
-        run()
-    finally:
-        stop()
+    run()
+    _CLIENT.disconnect()
