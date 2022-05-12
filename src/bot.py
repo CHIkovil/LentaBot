@@ -28,7 +28,7 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize("Ну смотри, для ленты нужно создать свой ПУБЛИЧНЫЙ канал!"))
         await message.answer(emojize("Потом добавь меня "
                                      "как администратора:smiling_face_with_sunglasses:"))
-        await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей будущей дружбы!"))
+        await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей дружбы!"))
         await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
         await StartQuestion.enter_personal_channel.set()
     else:
@@ -75,8 +75,14 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     exist_channels, not_exist_channel_urls = await _check_channels_exist([message.text])
 
     if not_exist_channel_urls:
-        await message.answer(emojize("Хмм что-то не похоже на канал..."))
-        await message.answer(emojize("Попробуй еще раз!"))
+        await message.answer(emojize("Хмм..."))
+        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
+        return
+
+    if not await _check_bot_is_channel_admin(list(exist_channels.keys())[0]):
+        await message.answer(emojize("Не понял, почему я все еще не администратор:red_question_mark:"))
+        await message.answer(emojize("Жду cсылку на канал, где я администратор..."))
+        await message.answer(emojize("Учти, я проверю:smiling_face_with_horns:"))
         return
 
     async with state.proxy() as data:
@@ -85,7 +91,7 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
     await message.answer(emojize("Через запятую конечно же."))
     await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
-    await message.answer(emojize("С такими мы не дружим:smiling_face_with_horns:"))
+    await message.answer(emojize("С такими мы не дружим:warning:"))
     await StartQuestion.enter_initial_listen_channels.set()
 
 
@@ -135,7 +141,7 @@ async def _check_channels_exist(channel_urls):
 
 
 async def _join_new_listen_channels_to_client(channels):
-    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs() if dialog.is_channel]
+    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel]
 
     for id, _ in channels.items():
         if id not in channel_dialogs:
@@ -164,6 +170,17 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
     else:
         data = [{'id': id, 'users': [user_id]} for id, _ in channels.items()]
         await channels_coll.insert_many(data)
+
+
+async def _check_bot_is_channel_admin(channel_id):
+    try:
+        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id),  conf.API_BOT_TOKEN.split(":")[0])
+        if member['status'] == 'administrator':
+            return True
+        else:
+            return False
+    except ChatNotFound:
+        return False
 
 
 # LISTENER
