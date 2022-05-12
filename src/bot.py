@@ -17,6 +17,7 @@ _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HA
 
 def run():
     _CLIENT.start(phone=conf.PHONE)
+    _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True)
 
 
@@ -40,17 +41,6 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
         await message.answer("Воспользуйся /help")
-
-
-@_DP.message_handler(commands=['admin_start'])
-async def _on_admin_start(message: bot_types.Message):
-    if message.from_user.id == (await _CLIENT.get_me(input_peer=True)).user_id:
-        await _reload_listener()
-
-
-@_DP.message_handler(commands=['admin_stop'])
-async def _on_admin_stop():
-    pass
 
 
 @_DP.message_handler(commands=['help'])
@@ -191,7 +181,7 @@ async def _reload_listener():
     listen_channels = [obj['id'] async for obj in channels_coll.find({})]
 
     if not listen_channels:
-        return False
+        return
 
     if _CLIENT.list_event_handlers():
         _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage())

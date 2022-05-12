@@ -8,7 +8,7 @@ import bson
 import re
 import datetime
 from bson import ObjectId
-from telethon import TelegramClient, events, types as client_types
+from telethon import TelegramClient, events, types as client_types, sync
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.account import UpdateNotifySettingsRequest
 from aiogram import Bot, Dispatcher, executor, filters, types as bot_types
