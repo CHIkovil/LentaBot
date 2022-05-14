@@ -1,3 +1,5 @@
+import logging
+
 from Support import *
 import conf
 
@@ -11,6 +13,7 @@ _BOT = Bot(token=conf.API_BOT_TOKEN)
 _STORAGE = MongoStorage(db_name=conf.APP_NAME)
 _DP = Dispatcher(_BOT, storage=_STORAGE)
 _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
+_LOGGER = logging.getLogger(conf.APP_NAME)
 
 
 def run():
@@ -136,6 +139,8 @@ async def _check_channels_exist(channel_urls):
                 raise ValueError
         except ValueError:
             not_exist_channel_urls.append(url)
+        except Exception as err:
+            _LOGGER.error(err)
     return exist_channels, not_exist_channel_urls
 
 
@@ -180,6 +185,8 @@ async def _check_bot_is_channel_admin(channel_id):
             raise ChatNotFound
     except ChatNotFound:
         return False
+    except Exception as err:
+        _LOGGER.error(err)
 
 
 async def _delete_everywhere_listen_channels(channel_ids):
@@ -242,6 +249,8 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
                 # await _delete_everywhere_listen_channels([listen_channel_id])
                 return
+            except Exception as err:
+                _LOGGER.error(err)
 
 
 if __name__ == '__main__':
