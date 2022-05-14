@@ -1,6 +1,6 @@
 import pytest
 from src import conf
-from src import _save_new_listen_channels, _STORAGE
+from src.bot import _save_new_listen_channels, _STORAGE
 
 _db_name = conf.APP_NAME + 'Test'
 _element_len = 4

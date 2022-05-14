@@ -182,6 +182,17 @@ async def _check_bot_is_channel_admin(channel_id):
         return False
 
 
+async def _delete_everywhere_listen_channels(channel_ids):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+    users_coll = db["aiogram_data"]
+
+    await channels_coll.delete_one({"id": {'$in': channel_ids}})
+    await _reload_listener()
+    await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
+
+
 # LISTENER
 async def _reload_listener():
     client = await _STORAGE.get_client()
@@ -220,6 +231,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                    message_id=message.id)
                         break
             except AuthKeyError:
+                await _delete_everywhere_listen_channels([listen_channel_id])
                 return
 
 
