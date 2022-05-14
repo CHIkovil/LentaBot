@@ -3,7 +3,6 @@ import conf
 
 
 class StartQuestion(StatesGroup):
-    enter_new_bot_nickname = State()
     enter_personal_channel = State()
     enter_initial_listen_channels = State()
 
@@ -178,7 +177,7 @@ async def _check_bot_is_channel_admin(channel_id):
         if member['status'] == 'administrator':
             return True
         else:
-            return False
+            raise ChatNotFound
     except ChatNotFound:
         return False
 
@@ -203,7 +202,7 @@ async def _reload_listener():
 async def _on_new_channel_message(event: events.NewMessage.Event):
     client = await _STORAGE.get_client()
     db = client[conf.APP_NAME]
-    users_coll = db['users']
+    users_coll = db["aiogram_data"]
 
     listen_channel_id = abs(10 ** 12 + event.chat_id)
     listen_users = [obj['data']['tape_channel']
@@ -212,13 +211,16 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
     if listen_users:
         for tape_channel_id in listen_users:
-            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
-            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
-                if message.forward.chat_id == event.chat_id:
-                    await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
-                                               from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
-                                               message_id=message.id)
-                    break
+            try:
+                await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
+                async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
+                    if message.forward.chat_id == event.chat_id:
+                        await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
+                                                   from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
+                                                   message_id=message.id)
+                        break
+            except AuthKeyError:
+                return
 
 
 if __name__ == '__main__':
