@@ -216,22 +216,23 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
     users_coll = db["aiogram_data"]
 
     listen_channel_id = abs(10 ** 12 + event.chat_id)
-    listen_users = [obj['data']['tape_channel']
+    listen_users = [obj
                     async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
                                                                {"data.is_listen": True}]})]
 
     if listen_users:
-        for tape_channel_id in listen_users:
+        for user in listen_users:
             try:
                 await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
                 async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
                     if message.forward.chat_id == event.chat_id:
-                        await _BOT.forward_message(chat_id=-(10 ** 12 + tape_channel_id),
+                        await _BOT.forward_message(chat_id=-(10 ** 12 + user['data']['tape_channel']),
                                                    from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
                                                    message_id=message.id)
                         break
             except AuthKeyError:
-                await _delete_everywhere_listen_channels([listen_channel_id])
+                # await _delete_everywhere_listen_channels([listen_channel_id])
+
                 return
 
 
