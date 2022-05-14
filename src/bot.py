@@ -173,7 +173,7 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
 
 async def _check_bot_is_channel_admin(channel_id):
     try:
-        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id),  conf.API_BOT_TOKEN.split(":")[0])
+        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), conf.API_BOT_TOKEN.split(":")[0])
         if member['status'] == 'administrator':
             return True
         else:
@@ -231,8 +231,16 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                    message_id=message.id)
                         break
             except AuthKeyError:
-                # await _delete_everywhere_listen_channels([listen_channel_id])
+                entity = await _CLIENT.get_entity(listen_channel_id)
+                async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
+                                                           {"data.is_listen": True}]}):
+                    await _BOT.send_message(chat_id=obj["user"],
+                                            text=emojize(
+                                                f"К глубочайшему сожалению, на канале https://t.me/{entity.username}"
+                                                f" включена защита на пересылку сообщений,"
+                                                f" поэтому он будет удален из ваших подписок:warning:"))
 
+                # await _delete_everywhere_listen_channels([listen_channel_id])
                 return
 
 
