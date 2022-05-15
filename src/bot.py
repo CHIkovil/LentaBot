@@ -118,7 +118,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['listen_channels'] = list(exist_channels.keys())
         data['is_listen'] = False
 
-    await _join_new_listen_channels_to_client(channels=exist_channels)
+    await _join_new_listen_channels_to_client(list(exist_channels.keys()))
     await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
@@ -144,11 +144,12 @@ async def _check_channels_exist(channel_urls):
     return exist_channels, not_exist_channel_urls
 
 
-async def _join_new_listen_channels_to_client(channels):
-    channel_dialogs = [dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel]
+async def _join_new_listen_channels_to_client(channel_ids):
+    channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
+    not_join_channel = list(set(channel_ids) - channel_dialog_ids)
 
-    for id, _ in channels.items():
-        if id not in channel_dialogs:
+    if not_join_channel:
+        for id in not_join_channel:
             await _CLIENT(JoinChannelRequest(channel=id))
             await _CLIENT(UpdateNotifySettingsRequest(peer=id,
                                                       settings=client_types.InputPeerNotifySettings(
@@ -199,7 +200,8 @@ async def _delete_everywhere_listen_channels(channel_ids):
     await _reload_listener()
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
 
-async def _send_message_subscribers_on_channel(post_text, channel_id):
+
+async def _send_message_channel_subscribers(post_text, channel_id):
     client = await _STORAGE.get_client()
     db = client[conf.APP_NAME]
     users_coll = db["aiogram_data"]
@@ -253,7 +255,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
             except AuthKeyError:
                 post_text = emojize("включена защита на пересылку сообщений, "
                                     "поэтому он будет удален из ваших подписок:warning:")
-                await _send_message_subscribers_on_channel(post_text, listen_channel_id)
+                await _send_message_channel_subscribers(post_text, listen_channel_id)
                 await _delete_everywhere_listen_channels([listen_channel_id])
                 await _CLIENT.delete_dialog(listen_channel_id)
                 return
