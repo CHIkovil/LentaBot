@@ -199,6 +199,19 @@ async def _delete_everywhere_listen_channels(channel_ids):
     await _reload_listener()
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
 
+async def _send_message_subscribers_on_channel(post_text, channel_id):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    entity = await _CLIENT.get_entity(channel_id)
+
+    async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_id]}}):
+        await _BOT.send_message(chat_id=obj["user"],
+                                text=emojize(
+                                    f"К глубочайшему сожалению, на канале https://t.me/{entity.username}"
+                                    + post_text))
+
 
 # LISTENER
 async def _reload_listener():
@@ -238,16 +251,11 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                    message_id=message.id)
                         break
             except AuthKeyError:
-                entity = await _CLIENT.get_entity(listen_channel_id)
-                async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
-                                                           {"data.is_listen": True}]}):
-                    await _BOT.send_message(chat_id=obj["user"],
-                                            text=emojize(
-                                                f"К глубочайшему сожалению, на канале https://t.me/{entity.username}"
-                                                f" включена защита на пересылку сообщений,"
-                                                f" поэтому он будет удален из ваших подписок:warning:"))
-
-                # await _delete_everywhere_listen_channels([listen_channel_id])
+                post_text = emojize("включена защита на пересылку сообщений, "
+                                    "поэтому он будет удален из ваших подписок:warning:")
+                await _send_message_subscribers_on_channel(post_text, listen_channel_id)
+                await _delete_everywhere_listen_channels([listen_channel_id])
+                await _CLIENT.delete_dialog(listen_channel_id)
                 return
             except Exception as err:
                 _LOGGER.error(err)
