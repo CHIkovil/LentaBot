@@ -12,26 +12,27 @@ async def test_save_new_listen_channels():
         client = await _STORAGE.get_client()
         db = client[_db_name]
 
-        channels = {i: "url" for i in range(0, _element_len)}
-        await _save_new_listen_channels(channels=channels,
+        channel_ids = [i for i in range(0, _element_len)]
+        await _save_new_listen_channels(channel_ids=channel_ids,
                                         user_id=1,
                                         db_name=_db_name)
 
         assert (conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names())) == True
         assert len([obj async for obj in db[conf.LISTEN_CHANNELS_COLL_NAME].find({})]) == _element_len
 
-        await _save_new_listen_channels(channels=channels,
+        await _save_new_listen_channels(channel_ids=channel_ids,
                                         user_id=2,
                                         db_name=_db_name)
 
         assert len([obj async for obj in db[conf.LISTEN_CHANNELS_COLL_NAME].find({})]) == _element_len
 
-        channels = {i: "url" for i in range(_element_len, _element_len + 4)}
-        await _save_new_listen_channels(channels=channels,
+        channel_ids = [i for i in range(_element_len, _element_len + 4)]
+        await _save_new_listen_channels(channel_ids=channel_ids,
                                         user_id=2,
                                         db_name=_db_name)
 
         assert len([obj async for obj in db[conf.LISTEN_CHANNELS_COLL_NAME].find({})]) == _element_len * 2
-
     finally:
         await client.drop_database(_db_name)
+
+

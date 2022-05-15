@@ -119,7 +119,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['is_listen'] = False
 
     await _join_new_listen_channels_to_client(list(exist_channels.keys()))
-    await _save_new_listen_channels(channels=exist_channels, user_id=message.from_user.id)
+    await _save_new_listen_channels(list(exist_channels.keys()), user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
     await state.reset_state(with_data=False)
@@ -158,13 +158,13 @@ async def _join_new_listen_channels_to_client(channel_ids):
             await _CLIENT.edit_folder(id, folder=1)
 
 
-async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
+async def _save_new_listen_channels(channel_ids, user_id, db_name=conf.APP_NAME):
     client = await _STORAGE.get_client()
     db = client[db_name]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
-        for id, _ in channels.items():
+        for id in channel_ids:
             channel_obj = [obj async for obj in channels_coll.find({"id": id})]
             if channel_obj:
                 await channels_coll.update_one({'id': id},
@@ -173,7 +173,7 @@ async def _save_new_listen_channels(channels, user_id, db_name=conf.APP_NAME):
                 await channels_coll.insert_one(
                     {'id': id, 'users': [user_id]})
     else:
-        data = [{'id': id, 'users': [user_id]} for id, _ in channels.items()]
+        data = [{'id': id, 'users': [user_id]} for id in channel_ids]
         await channels_coll.insert_many(data)
 
 
@@ -211,7 +211,7 @@ async def _send_message_channel_subscribers(post_text, channel_id):
     async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_id]}}):
         await _BOT.send_message(chat_id=obj["user"],
                                 text=emojize(
-                                    f"К глубочайшему сожалению, на канале https://t.me/{entity.username}"
+                                    f"К глубочайшему сожалению, на канале https://t.me/{entity.username} "
                                     + post_text))
 
 
