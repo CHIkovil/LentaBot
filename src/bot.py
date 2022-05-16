@@ -18,8 +18,9 @@ _LOGGER = logging.getLogger(conf.APP_NAME)
 
 def run():
     _CLIENT.start(phone=conf.PHONE)
+    _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
     _CLIENT.loop.run_until_complete(_reload_listener())
-    executor.start_polling(_DP, skip_updates=True)
+    executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
 
 
 # COMMAND
@@ -215,6 +216,18 @@ async def _send_message_channel_subscribers(post_text, channel_id):
                                     + post_text))
 
 
+async def _notify_users_about_engineering_works(is_start):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    async for obj in users_coll.find({}):
+        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start\
+            else emojize("А все, технические работы закончились:fire:")
+        await _BOT.send_message(chat_id=obj["user"],
+                                text=text)
+
+
 # LISTENER
 async def _reload_listener():
     client = await _STORAGE.get_client()
@@ -265,4 +278,5 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
 if __name__ == '__main__':
     run()
+    _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
     _CLIENT.disconnect()
