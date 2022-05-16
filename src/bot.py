@@ -75,9 +75,9 @@ async def _echo(message: bot_types.Message):
 # STATE
 @_DP.message_handler(state=StartQuestion.enter_personal_channel)
 async def _enter_personal_channel(message: bot_types.Message, state: FSMContext):
-    exist_channels, not_exist_channel_urls = await _check_channels_exist([message.text])
+    exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
-    if not_exist_channel_urls:
+    if not_exist_channel_entities:
         await message.answer(emojize("Хмм..."))
         await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
         return
@@ -101,18 +101,17 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
 @_DP.message_handler(state=StartQuestion.enter_initial_listen_channels)
 async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
-    exist_channels, not_exist_channel_urls = await _check_channels_exist(channels)
+    exist_channels, not_exist_channel_entities = await _check_channels_exist(channels)
 
-    if not_exist_channel_urls:
+    if not_exist_channel_entities:
         await message.answer("Что-то, но не каналы:\n"
-                             f"{','.join(not_exist_channel_urls)}\n")
+                             f"{','.join(not_exist_channel_entities)}\n")
         if exist_channels:
             await message.answer("Существующие каналы:\n"
                                  f"{','.join(list(exist_channels.values()))}\n")
 
         await message.answer("Внеси исправления и снова скинь мне!")
         await message.answer(emojize("Не забудь про запятую:smiling_face_with_horns:"))
-        await message.answer(emojize("А может это вообще не каналы..."))
         return
 
     async with state.proxy() as data:
@@ -128,21 +127,21 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 
 
 # SUPPORT
-async def _check_channels_exist(channel_urls):
+async def _check_channels_exist(channel_entities):
     exist_channels = {}
-    not_exist_channel_urls = []
-    for url in channel_urls:
+    not_exist_channel_entities = []
+    for entity in channel_entities:
         try:
-            entity = await _CLIENT.get_entity(url)
-            if isinstance(entity, client_types.Channel):
-                exist_channels[entity.id] = url
+            obj = await _CLIENT.get_entity(entity)
+            if isinstance(obj, client_types.Channel):
+                exist_channels[obj.id] = f"https://t.me/{obj.username}"
             else:
-                raise ValueError
+                not_exist_channel_entities.append(entity)
         except ValueError:
-            not_exist_channel_urls.append(url)
+            not_exist_channel_entities.append(entity)
         except Exception as err:
             _LOGGER.error(err)
-    return exist_channels, not_exist_channel_urls
+    return exist_channels, not_exist_channel_entities
 
 
 async def _join_new_listen_channels_to_client(channel_ids):
@@ -181,10 +180,10 @@ async def _save_new_listen_channels(channel_ids, user_id, db_name=conf.APP_NAME)
 async def _check_bot_is_channel_admin(channel_id):
     try:
         member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), conf.API_BOT_TOKEN.split(":")[0])
-        if member['status'] == 'administrator':
+        if member.status == 'administrator':
             return True
         else:
-            raise ChatNotFound
+            return False
     except ChatNotFound:
         return False
     except Exception as err:
