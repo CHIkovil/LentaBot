@@ -83,8 +83,8 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
         return
 
     if not await _check_bot_is_channel_admin(list(exist_channels.keys())[0]):
-        await message.answer(emojize("Не понял, почему я все еще не администратор:red_question_mark:"))
-        await message.answer(emojize("Жду cсылку на канал, где я администратор..."))
+        await message.answer(emojize("Тах тах я не администратор этого канала:red_question_mark:"))
+        await message.answer(emojize("Жду cсылку на канал..."))
         await message.answer(emojize("Учти, я проверю:smiling_face_with_horns:"))
         return
 
@@ -110,7 +110,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
             await message.answer("Существующие каналы:\n"
                                  f"{','.join(list(exist_channels.values()))}\n")
 
-        await message.answer("Внеси исправления и снова скинь мне!")
+        await message.answer("Внеси исправления и снова скинь все мне!")
         await message.answer(emojize("Не забудь про запятую:smiling_face_with_horns:"))
         return
 
@@ -244,19 +244,10 @@ async def _reload_listener():
     if not listen_channel_ids:
         return
 
-    exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
-
-    if not_exist_channel_ids:
-        post_text = emojize("не существует(возможно его пересоздали), "
-                            "поэтому он будет удален из ваших подписок:warning:")
-        await _send_message_channels_subscribers(post_text, not_exist_channel_ids)
-        await _delete_everywhere_listen_channels(not_exist_channel_ids)
-        await _delete_channels_to_client(not_exist_channel_ids)
-
     if _CLIENT.list_event_handlers():
         _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage())
 
-    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=list(exist_channels.keys())))
+    _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=listen_channel_ids))
 
 
 async def _on_new_channel_message(event: events.NewMessage.Event):
