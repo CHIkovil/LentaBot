@@ -4,9 +4,14 @@ from Support import *
 import conf
 
 
-class StartQuestion(StatesGroup):
+class StartQuestionStates(StatesGroup):
     enter_personal_channel = State()
     enter_initial_listen_channels = State()
+
+
+class UpdateStates(StatesGroup):
+    enter_add_listen_channels = State()
+    enter_delete_listen_channel = State()
 
 
 _BOT = Bot(token=conf.API_BOT_TOKEN)
@@ -33,7 +38,7 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
                                      "как администратора:smiling_face_with_sunglasses:"))
         await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей дружбы!"))
         await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
-        await StartQuestion.enter_personal_channel.set()
+        await StartQuestionStates.enter_personal_channel.set()
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
@@ -66,6 +71,26 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
 
 
+@_DP.message_handler(commands=['add'])
+async def _add_listen_channel(message: bot_types.Message):
+    await message.answer(emojize("Слушаю:ear:"))
+    await message.answer(emojize("Накидывай каналы, которые хочешь добавить."))
+    await message.answer(emojize("Как закончишь скажи просто \n /everything"))
+    await UpdateStates.enter_add_listen_channels.set()
+
+
+@_DP.message_handler(commands=['delete'], state='*')
+async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
+    if (await state.get_data())['listen_channels']:
+        await message.answer(emojize("Внимаю:baby_chick:"))
+        await message.answer(emojize("Какой канал хочешь удалить?"))
+        await message.answer(emojize("Можешь просто кинуть его порядковый номер в списке твоих подписок:winking_face:"))
+        await UpdateStates.enter_delete_listen_channel.set()
+    else:
+        await message.answer(emojize("Что мы решили удалить из подписок, если нет ни одной:thought_balloon:"))
+        await message.answer(emojize("Сначала добавь хоть одну /add"))
+
+
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
     await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
@@ -73,7 +98,7 @@ async def _echo(message: bot_types.Message):
 
 
 # STATE
-@_DP.message_handler(state=StartQuestion.enter_personal_channel)
+@_DP.message_handler(state=StartQuestionStates.enter_personal_channel)
 async def _enter_personal_channel(message: bot_types.Message, state: FSMContext):
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
@@ -93,12 +118,14 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
 
     await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
     await message.answer(emojize("Через запятую конечно же."))
+    await message.answer(emojize("Можешь скинуть пока хотя бы одну, чтобы не тратить время..."))
+    await message.answer(emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
     await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
     await message.answer(emojize("С такими мы не дружим:warning:"))
-    await StartQuestion.enter_initial_listen_channels.set()
+    await StartQuestionStates.enter_initial_listen_channels.set()
 
 
-@_DP.message_handler(state=StartQuestion.enter_initial_listen_channels)
+@_DP.message_handler(state=StartQuestionStates.enter_initial_listen_channels)
 async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
     exist_channels, not_exist_channel_entities = await _check_channels_exist(channels)
@@ -124,6 +151,33 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await message.answer("Воспользуйся /help")
     await state.reset_state(with_data=False)
     await _reload_listener()
+
+
+@_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
+async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
+    if message.text == '/everything':
+        await message.answer(emojize("Принял:handshake_dark_skin_tone:"))
+        await state.reset_state(with_data=False)
+        await _reload_listener()
+        return
+
+    exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
+
+    if not_exist_channel_entities:
+        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
+        await message.answer(emojize("Исправь и снова скинь мне..."))
+        return
+
+    async with state.proxy() as data:
+        new_channel_id = list(exist_channels.keys())[0]
+        if new_channel_id not in data['listen_channels']:
+            data['listen_channels'].append(list(exist_channels.keys())[0])
+            await _join_new_listen_channels_to_client([new_channel_id])
+            await _save_new_listen_channels([new_channel_id], message.from_user.id)
+            await message.answer(emojize("Успех:check_mark_button:"))
+        else:
+            await message.answer(emojize("А такой канал уже есть в подписках."))
+            await message.answer(emojize("Давай другой:beaming_face_with_smiling_eyes:"))
 
 
 # SUPPORT
@@ -197,7 +251,6 @@ async def _delete_everywhere_listen_channels(channel_ids):
     users_coll = db["aiogram_data"]
 
     await channels_coll.delete_one({"id": {'$in': channel_ids}})
-    await _reload_listener()
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
 
 
@@ -276,6 +329,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                 await _send_message_channels_subscribers(post_text, [listen_channel_id])
                 await _delete_everywhere_listen_channels([listen_channel_id])
                 await _delete_channels_to_client([listen_channel_id])
+                await _reload_listener()
                 return
             except Exception as err:
                 _LOGGER.error(err)
