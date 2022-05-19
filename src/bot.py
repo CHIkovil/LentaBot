@@ -47,13 +47,13 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
-    await message.answer(emojize("Помощь, которую мы заслужили:lemon:\n\n"
-                                 f"/on, /off - вкл/выкл ленту, состоящую из каналов на которые ты подписался через меня.\n\n"
-                                 "(Приходит на твой личный канал, который мы добавили в самом начале нашего пути)\n\n"
-                                 "/add - добавлет новый канал в подписки.\n\n"
-                                 "(Можно быстро накидать ссылки каналов, с помощью пересылку в телеграм, не общаясь со мной лицом к лицу.\n"
-                                 "Главное в конце не забудь отправить мне команду /everything)\n\n"
-                                 "/delete - удаляет канал из подписок"
+    await message.answer(emojize("Помощь, которую мы заслужили:backhand_index_pointing_down:\n\n"
+                                 f":rocket::stop_sign: /on, /off - вкл/выкл ленту, состоящую из каналов на которые ты подписал(ся-ась) через меня.\n"
+                                 ":thought_balloon:(Приходит на твой личный канал, который мы добавили в самом начале нашего пути.)\n\n"
+                                 ":check_mark_button: /add - добавляет новый канал в подписки.\n"
+                                 ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылку в телеграм, не общаясь со мной лицом к лицу.\n"
+                                 "Главное в конце не забудь отправить мне команду /everything.)\n\n"
+                                 ":check_mark_button: /delete - удаляет канал из подписок."
                                  ))
 
 
@@ -89,7 +89,7 @@ async def _add_listen_channel(message: bot_types.Message):
 @_DP.message_handler(commands=['delete'], state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['listen_channels']:
-        await message.answer(emojize("Внимаю:baby_chick:"))
+        await message.answer(emojize("Внимаю:clapping_hands:"))
         await message.answer(emojize("Какой канал хочешь удалить?"))
         await message.answer(emojize("Можешь просто кинуть его порядковый номер в списке твоих подписок:winking_face:"))
         await UpdateStates.enter_delete_listen_channel.set()
