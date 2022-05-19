@@ -250,6 +250,27 @@ async def _check_channels_exist(channel_entities):
     return exist_channels, not_exist_channel_entities
 
 
+async def _check_channels_actuality(channel_ids):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    exist_channels, not_exist_channel_ids = await _check_channels_exist(channel_entities=channel_ids)
+    exist_listen_channel = {obj['nickname']: obj['id'] async for obj in
+                            channels_coll.find({"id": {"$in": list(exist_channels.keys())}})}
+    not_exist_listen_channels = {obj['id']: obj['nickname'] async for obj in
+                                 channels_coll.find({"id": {"$in": not_exist_channel_ids}})}
+
+    not_equal_old_nicknames = set(exist_channels.values()) - set(exist_listen_channel.keys())
+
+    if not_equal_old_nicknames:
+        for old_nickname in not_equal_old_nicknames:
+            await channels_coll.update_one({'id': exist_listen_channel[old_nickname]},
+                                           {'nickname': exist_channels[exist_listen_channel[old_nickname]]})
+
+    return exist_channels, not_exist_listen_channels
+
+
 async def _join_new_listen_channels_to_client(channel_ids):
     channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
     not_join_channel = list(set(channel_ids) - channel_dialog_ids)
