@@ -146,7 +146,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['listen_channels'] = list(exist_channels.keys())
         data['is_listen'] = False
         await _join_new_listen_channels_to_client(list(exist_channels.keys()))
-        await _save_new_listen_channels_to_common_collection(list(exist_channels.keys()), user_id=message.from_user.id)
+        await _save_new_listen_channels_to_common_collection(exist_channels, user_id=message.from_user.id)
         await _reload_listener()
         await message.answer(emojize("Все запомнил:OK_hand:"))
         await message.answer("Воспользуйся /help")
@@ -173,16 +173,15 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
         if new_channel_id not in data['listen_channels']:
             data['listen_channels'].append(new_channel_id)
             await _join_new_listen_channels_to_client([new_channel_id])
-            await _save_new_listen_channels_to_common_collection([new_channel_id], message.from_user.id)
+            await _save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
             await message.answer(emojize("Добавил:check_mark_button:"))
         else:
-            await message.answer(emojize("А такой канал уже есть в твоих подписках..."))
+            await message.answer(emojize("Канал уже есть в твоих подписках..."))
             await message.answer(emojize("Давай другой:beaming_face_with_smiling_eyes:"))
 
 
 @_DP.message_handler(state=UpdateStates.enter_delete_listen_channel)
 async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
-
     del_channel_id = None
 
     if message.text.isnumeric():
@@ -194,10 +193,12 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
             elif len(data['listen_channels']) == channel_ind:
                 await message.answer(emojize("Не забывай, что номера каналов в списке подписок начинаются с 0!"))
                 await message.answer(emojize("Учти это и попробуй снова:smiling_face_with_smiling_eyes:"))
+                return
             else:
-                await message.answer(emojize("Тах тах, почему номер канала, "
+                await message.answer(emojize("Тах тах, почему номер канала в твоих подписках "
                                              "больше чем количество этих самых подписок?:face_with_hand_over_mouth:"))
                 await message.answer(emojize("Попробуй снова:oncoming_fist:"))
+                return
 
     else:
         exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
@@ -234,7 +235,7 @@ async def _check_channels_exist(channel_entities):
         try:
             obj = await _CLIENT.get_entity(entity)
             if isinstance(obj, client_types.Channel):
-                exist_channels[obj.id] = f"https://t.me/{obj.username}"
+                exist_channels[obj.id] = f"@{obj.username}"
             else:
                 not_exist_channel_entities.append(entity)
         except ValueError:
@@ -258,22 +259,22 @@ async def _join_new_listen_channels_to_client(channel_ids):
             await _CLIENT.edit_folder(id, folder=1)
 
 
-async def _save_new_listen_channels_to_common_collection(channel_ids, user_id, db_name=conf.APP_NAME):
+async def _save_new_listen_channels_to_common_collection(channels, user_id, db_name=conf.APP_NAME):
     client = await _STORAGE.get_client()
     db = client[db_name]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
-        for id in channel_ids:
+        for id, username in channels.items():
             channel_obj = [obj async for obj in channels_coll.find({"id": id})]
             if channel_obj:
                 await channels_coll.update_one({'id': id},
                                                {'$push': {'users': user_id}})
             else:
                 await channels_coll.insert_one(
-                    {'id': id, 'users': [user_id]})
+                    {'id': id, 'username': username, 'users': [user_id]})
     else:
-        data = [{'id': id, 'users': [user_id]} for id in channel_ids]
+        data = [{'id': id, 'username': username, 'users': [user_id]} for id, username in channels.items()]
         await channels_coll.insert_many(data)
 
 
