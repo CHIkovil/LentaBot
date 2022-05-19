@@ -47,7 +47,14 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
-    await message.answer("Это help")
+    await message.answer(emojize("Помощь, которую мы заслужили:lemon:\n\n"
+                                 f"/on, /off - вкл/выкл ленту, состоящую из каналов на которые ты подписался через меня.\n\n"
+                                 "(Приходит на твой личный канал, который мы добавили в самом начале нашего пути)\n\n"
+                                 "/add - добавлет новый канал в подписки.\n\n"
+                                 "(Можно быстро накидать ссылки каналов, с помощью пересылку в телеграм, не общаясь со мной лицом к лицу.\n"
+                                 "Главное в конце не забудь отправить мне команду /everything)\n\n"
+                                 "/delete - удаляет канал из подписок"
+                                 ))
 
 
 @_DP.message_handler(commands=['on'], state='*')
