@@ -119,7 +119,8 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
     await message.answer(emojize("Через запятую конечно же."))
     await message.answer(emojize("Можешь скинуть пока хотя бы одну, чтобы не тратить время..."))
-    await message.answer(emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
+    await message.answer(
+        emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
     await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
     await message.answer(emojize("С такими мы не дружим:warning:"))
     await StartQuestionStates.enter_initial_listen_channels.set()
@@ -144,21 +145,20 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     async with state.proxy() as data:
         data['listen_channels'] = list(exist_channels.keys())
         data['is_listen'] = False
-
-    await _join_new_listen_channels_to_client(list(exist_channels.keys()))
-    await _save_new_listen_channels_to_common_collection(list(exist_channels.keys()), user_id=message.from_user.id)
-    await message.answer(emojize("Все запомнил:OK_hand:"))
-    await message.answer("Воспользуйся /help")
-    await state.reset_state(with_data=False)
-    await _reload_listener()
+        await _join_new_listen_channels_to_client(list(exist_channels.keys()))
+        await _save_new_listen_channels_to_common_collection(list(exist_channels.keys()), user_id=message.from_user.id)
+        await _reload_listener()
+        await message.answer(emojize("Все запомнил:OK_hand:"))
+        await message.answer("Воспользуйся /help")
+        await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/everything':
         await message.answer(emojize("Принял:handshake:"))
-        await state.reset_state(with_data=False)
         await _reload_listener()
+        await state.reset_state(with_data=False)
         return
 
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
@@ -171,13 +171,59 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     async with state.proxy() as data:
         new_channel_id = list(exist_channels.keys())[0]
         if new_channel_id not in data['listen_channels']:
-            data['listen_channels'].append(list(exist_channels.keys())[0])
+            data['listen_channels'].append(new_channel_id)
             await _join_new_listen_channels_to_client([new_channel_id])
             await _save_new_listen_channels_to_common_collection([new_channel_id], message.from_user.id)
-            await message.answer(emojize("Успех:check_mark_button:"))
+            await message.answer(emojize("Добавил:check_mark_button:"))
         else:
-            await message.answer(emojize("А такой канал уже есть в подписках."))
+            await message.answer(emojize("А такой канал уже есть в твоих подписках..."))
             await message.answer(emojize("Давай другой:beaming_face_with_smiling_eyes:"))
+
+
+@_DP.message_handler(state=UpdateStates.enter_delete_listen_channel)
+async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
+
+    del_channel_id = None
+
+    if message.text.isnumeric():
+        async with state.proxy() as data:
+            channel_ind = int(message.text)
+            if len(data['listen_channels']) > channel_ind:
+                listen_channels = data['listen_channels']
+                del_channel_id = listen_channels[channel_ind]
+            elif len(data['listen_channels']) == channel_ind:
+                await message.answer(emojize("Не забывай, что номера каналов в списке подписок начинаются с 0!"))
+                await message.answer(emojize("Учти это и попробуй снова:smiling_face_with_smiling_eyes:"))
+            else:
+                await message.answer(emojize("Тах тах, почему номер канала, "
+                                             "больше чем количество этих самых подписок?:face_with_hand_over_mouth:"))
+                await message.answer(emojize("Попробуй снова:oncoming_fist:"))
+
+    else:
+        exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
+
+        if not_exist_channel_entities:
+            await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
+            await message.answer(emojize("Исправь и снова скинь мне..."))
+            return
+
+        del_channel_id = list(exist_channels.keys())[0]
+        async with state.proxy() as data:
+            if del_channel_id not in data['listen_channels']:
+                await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
+                return
+
+    async with state.proxy() as data:
+        data['listen_channels'].remove(del_channel_id)
+        deleted_channel_ids = await _delete_listen_channels_to_common_collection([del_channel_id],
+                                                                                 user_id=message.from_user.id)
+        if deleted_channel_ids:
+            await _delete_channels_to_client(deleted_channel_ids)
+            await _reload_listener()
+
+        await message.answer(emojize("Удалил:check_mark_button:"))
+        await state.reset_state(with_data=False)
+        return
 
 
 # SUPPORT
@@ -250,13 +296,29 @@ async def _delete_everywhere_listen_channels(channel_ids):
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
     users_coll = db["aiogram_data"]
 
-    await channels_coll.delete_one({"id": {'$in': channel_ids}})
+    await channels_coll.delete_many({"id": {'$in': channel_ids}})
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
+    await _delete_channels_to_client(channel_ids)
 
 
 async def _delete_channels_to_client(channel_ids):
     for id in channel_ids:
         await _CLIENT.delete_dialog(id)
+
+
+async def _delete_listen_channels_to_common_collection(channel_ids, user_id, db_name=conf.APP_NAME):
+    client = await _STORAGE.get_client()
+    db = client[db_name]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    for id in channel_ids:
+        await channels_coll.update_one({"id": id}, {"$pull": {"users": {'$in': [user_id]}}})
+
+    empty_users_channel_ids = [obj['id'] async for obj in channels_coll.find({"users": {"$in": [None, []]}})]
+
+    if empty_users_channel_ids:
+        channels_coll.delete_many({"id": {'$in': empty_users_channel_ids}})
+        return empty_users_channel_ids
 
 
 async def _send_message_channels_subscribers(post_text, channel_ids):
@@ -280,7 +342,7 @@ async def _notify_users_about_engineering_works(is_start):
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
-        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start\
+        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
             else emojize("А все, технические работы закончились:fire:")
         await _BOT.send_message(chat_id=obj["user"],
                                 text=text)
@@ -328,7 +390,6 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                     "поэтому он будет удален из ваших подписок:warning:")
                 await _send_message_channels_subscribers(post_text, [listen_channel_id])
                 await _delete_everywhere_listen_channels([listen_channel_id])
-                await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
                 return
             except Exception as err:
