@@ -182,8 +182,6 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
 
 @_DP.message_handler(state=UpdateStates.enter_delete_listen_channel)
 async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
-    del_channel_id = None
-
     if message.text.isnumeric():
         async with state.proxy() as data:
             channel_ind = int(message.text)
@@ -265,16 +263,16 @@ async def _save_new_listen_channels_to_common_collection(channels, user_id, db_n
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
     if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
-        for id, username in channels.items():
+        for id, nickname in channels.items():
             channel_obj = [obj async for obj in channels_coll.find({"id": id})]
             if channel_obj:
                 await channels_coll.update_one({'id': id},
                                                {'$push': {'users': user_id}})
             else:
                 await channels_coll.insert_one(
-                    {'id': id, 'username': username, 'users': [user_id]})
+                    {'id': id, 'nickname': nickname, 'users': [user_id]})
     else:
-        data = [{'id': id, 'username': username, 'users': [user_id]} for id, username in channels.items()]
+        data = [{'id': id, 'nickname': nickname, 'users': [user_id]} for id, nickname in channels.items()]
         await channels_coll.insert_many(data)
 
 
