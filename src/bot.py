@@ -146,7 +146,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
         data['is_listen'] = False
 
     await _join_new_listen_channels_to_client(list(exist_channels.keys()))
-    await _save_new_listen_channels(list(exist_channels.keys()), user_id=message.from_user.id)
+    await _save_new_listen_channels_to_common_collection(list(exist_channels.keys()), user_id=message.from_user.id)
     await message.answer(emojize("Все запомнил:OK_hand:"))
     await message.answer("Воспользуйся /help")
     await state.reset_state(with_data=False)
@@ -156,7 +156,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/everything':
-        await message.answer(emojize("Принял:handshake_dark_skin_tone:"))
+        await message.answer(emojize("Принял:handshake:"))
         await state.reset_state(with_data=False)
         await _reload_listener()
         return
@@ -173,7 +173,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
         if new_channel_id not in data['listen_channels']:
             data['listen_channels'].append(list(exist_channels.keys())[0])
             await _join_new_listen_channels_to_client([new_channel_id])
-            await _save_new_listen_channels([new_channel_id], message.from_user.id)
+            await _save_new_listen_channels_to_common_collection([new_channel_id], message.from_user.id)
             await message.answer(emojize("Успех:check_mark_button:"))
         else:
             await message.answer(emojize("А такой канал уже есть в подписках."))
@@ -212,7 +212,7 @@ async def _join_new_listen_channels_to_client(channel_ids):
             await _CLIENT.edit_folder(id, folder=1)
 
 
-async def _save_new_listen_channels(channel_ids, user_id, db_name=conf.APP_NAME):
+async def _save_new_listen_channels_to_common_collection(channel_ids, user_id, db_name=conf.APP_NAME):
     client = await _STORAGE.get_client()
     db = client[db_name]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
