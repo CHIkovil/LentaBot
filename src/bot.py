@@ -18,6 +18,7 @@ _BOT = Bot(token=conf.API_BOT_TOKEN)
 _STORAGE = MongoStorage(db_name=conf.APP_NAME)
 _DP = Dispatcher(_BOT, storage=_STORAGE)
 _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
+logging.basicConfig(level=logging.ERROR)
 _LOGGER = logging.getLogger(conf.APP_NAME)
 
 
@@ -114,8 +115,10 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
         await _reload_listener()
 
     table_text_arr = []
+    exist_id = set(exist_channels.keys())
+
     for index, id in enumerate(listen_channel_ids):
-        if id in list(exist_channels.keys()):
+        if id in exist_id:
             table_text_arr.append(f'{index} - {exist_channels[id]}')
 
     await message.answer('\n'.join(table_text_arr))
@@ -200,7 +203,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
 
     async with state.proxy() as data:
         new_channel_id = list(exist_channels.keys())[0]
-        if new_channel_id not in data['listen_channels']:
+        if new_channel_id not in set(data['listen_channels']):
             data['listen_channels'].append(new_channel_id)
             await _join_new_listen_channels_to_client([new_channel_id])
             await _save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
@@ -238,7 +241,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
         del_channel_id = list(exist_channels.keys())[0]
         async with state.proxy() as data:
-            if del_channel_id not in data['listen_channels']:
+            if del_channel_id not in set(data['listen_channels']):
                 await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
                 return
 
@@ -265,6 +268,8 @@ async def _check_channels_exist(channel_entities):
                 exist_channels[obj.id] = f"@{obj.username}"
             else:
                 not_exist_channel_entities.append(entity)
+        except ValueError:
+            not_exist_channel_entities.append(entity)
         except Exception as err:
             not_exist_channel_entities.append(entity)
             _LOGGER.error(err)
@@ -354,7 +359,7 @@ async def _save_new_listen_channels_to_common_collection(channels, user_id, db_n
     db = client[db_name]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    if conf.LISTEN_CHANNELS_COLL_NAME in list(await db.list_collection_names()):
+    if conf.LISTEN_CHANNELS_COLL_NAME in set(await db.list_collection_names()):
         for id, nickname in channels.items():
             channel_obj = [obj async for obj in channels_coll.find({"id": id})]
             if channel_obj:
