@@ -110,11 +110,13 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                             "поэтому он будет удален из ваших подписок:warning:")
         await _send_message_channels_subscribers(post_text, not_exist_channel_ids)
         await _delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+        await _delete_channels_to_client(not_exist_channel_ids)
         await _reload_listener()
 
     table_text_arr = []
-    for index, id in enumerate(list(exist_channels.keys())):
-        table_text_arr.append(f'{index} - {exist_channels[id]}')
+    for index, id in enumerate(listen_channel_ids):
+        if id in list(exist_channels.keys()):
+            table_text_arr.append(f'{index} - {exist_channels[id]}')
 
     await message.answer('\n'.join(table_text_arr))
 
@@ -297,8 +299,10 @@ async def _check_bot_is_channel_admin(channel_id):
 
 
 async def _delete_channels_to_client(channel_ids):
+    channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
     for id in channel_ids:
-        await _CLIENT.delete_dialog(id)
+        if id in channel_dialog_ids:
+            await _CLIENT.delete_dialog(id)
 
 
 async def _send_message_channels_subscribers(post_text, channel_ids):
@@ -431,7 +435,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                     "поэтому он будет удален из ваших подписок:warning:")
                 await _send_message_channels_subscribers(post_text, [listen_channel_id])
                 await _delete_everywhere_listen_channels_to_store([listen_channel_id])
-                # await _delete_channels_to_client([listen_channel_id])
+                await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
                 return
             except Exception as err:
