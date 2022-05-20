@@ -110,11 +110,10 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                             "поэтому он будет удален из ваших подписок:warning:")
         await _send_message_channels_subscribers(post_text, not_exist_channel_ids)
         await _delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
-        await _delete_channels_to_client(not_exist_channel_ids)
         await _reload_listener()
 
     table_text_arr = []
-    for index, id in enumerate(listen_channel_ids):
+    for index, id in enumerate(list(exist_channels.keys())):
         table_text_arr.append(f'{index} - {exist_channels[id]}')
 
     await message.answer('\n'.join(table_text_arr))
@@ -264,9 +263,8 @@ async def _check_channels_exist(channel_entities):
                 exist_channels[obj.id] = f"@{obj.username}"
             else:
                 not_exist_channel_entities.append(entity)
-        except ValueError:
-            not_exist_channel_entities.append(entity)
         except Exception as err:
+            not_exist_channel_entities.append(entity)
             _LOGGER.error(err)
     return exist_channels, not_exist_channel_entities
 
