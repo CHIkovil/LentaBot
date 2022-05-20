@@ -48,12 +48,13 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
     await message.answer(emojize("Помощь, которую мы заслужили:backhand_index_pointing_down:\n\n"
-                                 f":rocket::stop_sign: /on, /off - вкл/выкл ленту, состоящую из каналов на которые ты подписал(ся-ась) через меня.\n"
+                                 f":rocket::stop_sign: /on, /off - вкл/выкл ленту, состоящую из публикаций каналов на которые ты подписал/ся-ась через меня.\n"
                                  ":thought_balloon:(Приходит на твой личный канал, который мы добавили в самом начале нашего пути.)\n\n"
                                  ":check_mark_button: /add - добавляет новый канал в подписки.\n"
                                  ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылку в телеграм, не общаясь со мной лицом к лицу.\n"
                                  "Главное в конце не забудь отправить мне команду /everything.)\n\n"
-                                 ":check_mark_button: /delete - удаляет канал из подписок."
+                                 ":check_mark_button: /delete - удаляет канал из подписок.\n\n"
+                                 ":clipboard: /subscriptions - показывает список подписок."
                                  ))
 
 
@@ -96,6 +97,27 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     else:
         await message.answer(emojize("Что мы решили удалить из подписок, если нет ни одной:thought_balloon:"))
         await message.answer(emojize("Сначала добавь хоть одну /add"))
+
+
+@_DP.message_handler(commands=['subscriptions'], state='*')
+async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
+    listen_channel_ids = (await state.get_data())['listen_channels']
+
+    exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
+    await _check_channels_actuality_to_store(exist_channels)
+    if not_exist_channel_ids:
+        post_text = emojize("больше не существует, "
+                            "поэтому он будет удален из ваших подписок:warning:")
+        await _send_message_channels_subscribers(post_text, not_exist_channel_ids)
+        await _delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+        await _delete_channels_to_client(not_exist_channel_ids)
+        await _reload_listener()
+
+    table_text_arr = []
+    for index, id in enumerate(listen_channel_ids):
+        table_text_arr.append(f'{index} - {exist_channels[id]}')
+
+    await message.answer('\n'.join(table_text_arr))
 
 
 @_DP.message_handler()
@@ -229,7 +251,6 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
         await message.answer(emojize("Удалил:check_mark_button:"))
         await state.reset_state(with_data=False)
-        return
 
 
 # SUPPORT
@@ -250,27 +271,6 @@ async def _check_channels_exist(channel_entities):
     return exist_channels, not_exist_channel_entities
 
 
-async def _check_channels_actuality(channel_ids):
-    client = await _STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
-
-    exist_channels, not_exist_channel_ids = await _check_channels_exist(channel_entities=channel_ids)
-    exist_listen_channel = {obj['nickname']: obj['id'] async for obj in
-                            channels_coll.find({"id": {"$in": list(exist_channels.keys())}})}
-    not_exist_listen_channels = {obj['id']: obj['nickname'] async for obj in
-                                 channels_coll.find({"id": {"$in": not_exist_channel_ids}})}
-
-    not_equal_old_nicknames = set(exist_channels.values()) - set(exist_listen_channel.keys())
-
-    if not_equal_old_nicknames:
-        for old_nickname in not_equal_old_nicknames:
-            await channels_coll.update_one({'id': exist_listen_channel[old_nickname]},
-                                           {'nickname': exist_channels[exist_listen_channel[old_nickname]]})
-
-    return exist_channels, not_exist_listen_channels
-
-
 async def _join_new_listen_channels_to_client(channel_ids):
     channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
     not_join_channel = list(set(channel_ids) - channel_dialog_ids)
@@ -283,6 +283,68 @@ async def _join_new_listen_channels_to_client(channel_ids):
                                                           mute_until=2 ** 31 - 1
                                                       )))
             await _CLIENT.edit_folder(id, folder=1)
+
+
+async def _check_bot_is_channel_admin(channel_id):
+    try:
+        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), conf.API_BOT_TOKEN.split(":")[0])
+        if member.status == 'administrator':
+            return True
+        else:
+            return False
+    except ChatNotFound:
+        return False
+    except Exception as err:
+        _LOGGER.error(err)
+
+
+async def _delete_channels_to_client(channel_ids):
+    for id in channel_ids:
+        await _CLIENT.delete_dialog(id)
+
+
+async def _send_message_channels_subscribers(post_text, channel_ids):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
+
+        async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
+            await _BOT.send_message(chat_id=obj["user"],
+                                    text=emojize(
+                                        f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
+                                        + post_text))
+
+
+async def _notify_users_about_engineering_works(is_start):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    async for obj in users_coll.find({}):
+        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
+            else emojize("А все, технические работы закончились:fire:")
+        await _BOT.send_message(chat_id=obj["user"],
+                                text=text)
+
+
+# DBStore
+async def _check_channels_actuality_to_store(exist_channels):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    exist_listen_channel = {obj['nickname']: obj['id'] async for obj in
+                            channels_coll.find({"id": {"$in": list(exist_channels.keys())}})}
+
+    not_equal_old_nicknames = list(set(exist_listen_channel.keys()) - set(exist_channels.values()))
+
+    if not_equal_old_nicknames:
+        for old_nickname in not_equal_old_nicknames:
+            await channels_coll.update_one({'id': exist_listen_channel[old_nickname]},
+                                           {"$set": {'nickname': exist_channels[exist_listen_channel[old_nickname]]}})
 
 
 async def _save_new_listen_channels_to_common_collection(channels, user_id, db_name=conf.APP_NAME):
@@ -304,20 +366,7 @@ async def _save_new_listen_channels_to_common_collection(channels, user_id, db_n
         await channels_coll.insert_many(data)
 
 
-async def _check_bot_is_channel_admin(channel_id):
-    try:
-        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), conf.API_BOT_TOKEN.split(":")[0])
-        if member.status == 'administrator':
-            return True
-        else:
-            return False
-    except ChatNotFound:
-        return False
-    except Exception as err:
-        _LOGGER.error(err)
-
-
-async def _delete_everywhere_listen_channels(channel_ids):
+async def _delete_everywhere_listen_channels_to_store(channel_ids):
     client = await _STORAGE.get_client()
     db = client[conf.APP_NAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
@@ -325,12 +374,6 @@ async def _delete_everywhere_listen_channels(channel_ids):
 
     await channels_coll.delete_many({"id": {'$in': channel_ids}})
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
-    await _delete_channels_to_client(channel_ids)
-
-
-async def _delete_channels_to_client(channel_ids):
-    for id in channel_ids:
-        await _CLIENT.delete_dialog(id)
 
 
 async def _delete_listen_channels_to_common_collection(channel_ids, user_id, db_name=conf.APP_NAME):
@@ -346,33 +389,6 @@ async def _delete_listen_channels_to_common_collection(channel_ids, user_id, db_
     if empty_users_channel_ids:
         channels_coll.delete_many({"id": {'$in': empty_users_channel_ids}})
         return empty_users_channel_ids
-
-
-async def _send_message_channels_subscribers(post_text, channel_ids):
-    client = await _STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    users_coll = db["aiogram_data"]
-
-    for id in channel_ids:
-        entity = await _CLIENT.get_entity(id)
-
-        async for obj in users_coll.find({"data.listen_channels": {'$in': [id]}}):
-            await _BOT.send_message(chat_id=obj["user"],
-                                    text=emojize(
-                                        f"К глубочайшему сожалению, канал https://t.me/{entity.username} "
-                                        + post_text))
-
-
-async def _notify_users_about_engineering_works(is_start):
-    client = await _STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    users_coll = db["aiogram_data"]
-
-    async for obj in users_coll.find({}):
-        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
-            else emojize("А все, технические работы закончились:fire:")
-        await _BOT.send_message(chat_id=obj["user"],
-                                text=text)
 
 
 # LISTENER
@@ -416,7 +432,8 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                 post_text = emojize("включил защиту на пересылку сообщений, "
                                     "поэтому он будет удален из ваших подписок:warning:")
                 await _send_message_channels_subscribers(post_text, [listen_channel_id])
-                await _delete_everywhere_listen_channels([listen_channel_id])
+                await _delete_everywhere_listen_channels_to_store([listen_channel_id])
+                # await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
                 return
             except Exception as err:
