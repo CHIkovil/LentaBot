@@ -43,6 +43,7 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
     else:
         await message.answer(emojize(f"Мы уже начинали когда-то."))
         await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
+        await message.answer(emojize(f"Не забудь перезапустить ленту!"))
         await message.answer("Воспользуйся /help")
 
 
@@ -125,6 +126,14 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
         await message.answer('\n'.join(table_text_arr))
 
 
+@_DP.message_handler(commands=['edit_my_channel'])
+async def _recreate_tape_channel(message: bot_types.Message):
+    await _drop_tape_channel_for_user(message.from_user.id)
+    await message.answer(emojize(f"Ну что, пора переезжать на новый канал:handbag:"))
+    await message.answer(emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить туда меня как администратора!"))
+    await StartQuestionStates.enter_personal_channel.set()
+
+
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
     await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
@@ -149,15 +158,20 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
 
     async with state.proxy() as data:
         data['tape_channel'] = list(exist_channels.keys())[0]
+        if data.get('listen_channels') is not None:
+            await message.answer(emojize("Заменил:check_mark_button:"))
+            await message.answer(emojize(f"Не забудь перезапустить ленту:smiling_face_with_smiling_eyes:"))
+            await state.reset_state(with_data=False)
+            return
 
-    await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
-    await message.answer(emojize("Через запятую конечно же."))
-    await message.answer(emojize("Можешь скинуть пока хотя бы одну, чтобы не тратить время..."))
-    await message.answer(
-        emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
-    await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
-    await message.answer(emojize("С такими мы не дружим:warning:"))
-    await StartQuestionStates.enter_initial_listen_channels.set()
+        await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
+        await message.answer(emojize("Через запятую конечно же."))
+        await message.answer(emojize("Можешь скинуть пока хотя бы одну, чтобы не тратить время..."))
+        await message.answer(
+            emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
+        await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
+        await message.answer(emojize("С такими мы не дружим:warning:"))
+        await StartQuestionStates.enter_initial_listen_channels.set()
 
 
 @_DP.message_handler(state=StartQuestionStates.enter_initial_listen_channels)
@@ -398,6 +412,23 @@ async def _delete_listen_channels_to_common_collection(channel_ids, user_id, db_
         return empty_users_channel_ids
 
 
+async def _stop_listen_for_user(user_id):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    await users_coll.update_one({"user": user_id}, {"$set": {"data.is_listen": False}})
+
+
+async def _drop_tape_channel_for_user(user_id):
+    client = await _STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    await _stop_listen_for_user(user_id=user_id)
+    await users_coll.update_one({"user": user_id}, {"$set": {"data.tape_channel": None}})
+
+
 # LISTENER
 async def _reload_listener():
     client = await _STORAGE.get_client()
@@ -443,7 +474,17 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                 await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
                 return
+            except Unauthorized:
+                await _drop_tape_channel_for_user(user['user'])
+                await _BOT.send_message(chat_id=user['user'],
+                                        text=emojize(
+                                            f"Тах тах, почему я был удален с твоего канала?:anguished_face:"))
+                await _BOT.send_message(chat_id=user['user'],
+                                        text=emojize(
+                                            f"Раз так, теперь снова добавь канал, "
+                                            f"куда я буду скидывать публикации твоих подписок /edit_my_channel :smirking_face:"))
             except Exception as err:
+                await _stop_listen_for_user(user['user'])
                 _LOGGER.error(err)
 
 
