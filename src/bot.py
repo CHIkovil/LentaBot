@@ -56,6 +56,7 @@ async def _on_help(message: bot_types.Message):
                                  ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылку в телеграм, не общаясь со мной лицом к лицу.\n"
                                  "Главное в конце не забудь отправить мне команду /everything.)\n\n"
                                  ":check_mark_button: /delete - удаляет канал из подписок.\n\n"
+                                 ":check_mark_button: /edit_my_channel - заменяет канал на который будут приходить публикации от подписок.\n\n"
                                  ":clipboard: /subscriptions - показывает список подписок."
                                  ))
 
