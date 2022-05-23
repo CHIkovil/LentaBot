@@ -55,7 +55,7 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize("Как закончишь скажи просто \n /everything"))
         await UpdateStates.enter_add_listen_channels.set()
     else:
-        await message.answer(emojize("Все и сразу не получится:man_white_hair:"))
+        await message.answer(emojize("Все и сразу не получится:seedling:"))
         await message.answer(emojize("Сначала закончи предыдущие действия!"))
 
 
@@ -72,17 +72,21 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
             await message.answer(emojize("Что мы решили удалить из подписок, если даже нет ни одной...."))
             await message.answer(emojize("Сначала добавь хоть одну /add"))
     else:
-        await message.answer(emojize("Все и сразу не получится:man_white_hair:"))
+        await message.answer(emojize("Все и сразу не получится:seedling:"))
         await message.answer(emojize("Сначала закончи предыдущие действия!"))
 
 
-@_DP.message_handler(commands=['change_my_channel'])
-async def _recreate_tape_channel(message: bot_types.Message):
-    await _drop_tape_channel_for_user(message.from_user.id)
-    await message.answer(emojize(f"Ну что, пора переезжать на новый канал:handbag:"))
-    await message.answer(
-        emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить туда меня как администратора!"))
-    await StartQuestionStates.enter_personal_channel.set()
+@_DP.message_handler(commands=['change_my_channel'], state='*')
+async def _recreate_tape_channel(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        await _drop_tape_channel_for_user(message.from_user.id)
+        await message.answer(emojize(f"Ну что, пора переезжать на новый канал для ленты:clinking_beer_mugs:"))
+        await message.answer(
+            emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить меня как администратора!"))
+        await StartQuestionStates.enter_personal_channel.set()
+    else:
+        await message.answer(emojize("Все и сразу не получится:seedling:"))
+        await message.answer(emojize("Сначала закончи предыдущие действия!"))
 
 
 @_DP.message_handler(commands=['help'])
@@ -90,7 +94,7 @@ async def _on_help(message: bot_types.Message):
     await message.answer(emojize("Помощь, которую мы заслуживаем:backhand_index_pointing_down:\n\n"
                                  f":rocket::stop_sign: /on, /off - вкл/выкл ленту, состоящую из публикаций каналов на которые ты подписал/ся-ась через меня.\n"
                                  ":thought_balloon:(Приходит на твой личный канал, который мы добавили в самом начале нашего пути.)\n\n"
-                                 ":check_mark_button: /add - добавляет новый канал в подписки.\n"
+                                 ":check_mark_button: /add - добавляет новые каналы в подписки.\n"
                                  ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылки в телеграм, не общаясь со мной лицом к лицу.\n"
                                  "Главное в конце не забудь отправить мне команду /everything.)\n\n"
                                  ":check_mark_button: /delete - удаляет канал из подписок.\n\n"
@@ -104,34 +108,33 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
     if not (await state.get_state()):
         listen_channel_ids = (await state.get_data())['listen_channels']
 
-        if not listen_channel_ids:
+        if listen_channel_ids:
+            exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
+            await _check_channels_nickname_actuality_to_store(exist_channels)
+            if not_exist_channel_ids:
+                post_text = emojize("больше не существует, "
+                                    "поэтому он будет удален из ваших подписок:warning:")
+                await _send_message_channel_subscribers(post_text, not_exist_channel_ids)
+                await _delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+                await _delete_channels_to_client(not_exist_channel_ids)
+                await _reload_listener()
+
+            if exist_channels:
+                table_text_arr = []
+                actuality_channel_ids = set(exist_channels.keys())
+
+                for index, id in enumerate(listen_channel_ids):
+                    if id in actuality_channel_ids:
+                        table_text_arr.append(f'{index} - {exist_channels[id]}')
+
+                await message.answer('\n'.join(table_text_arr))
+
+        else:
             await message.answer(emojize("Cначала добавь хотя бы одну подписку:smiling_face_with_open_hands:"))
             await message.answer(emojize("Воспользуйся /add"))
-
-        exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
-        await _check_channels_nickname_actuality_to_store(exist_channels)
-        if not_exist_channel_ids:
-            post_text = emojize("больше не существует, "
-                                "поэтому он будет удален из ваших подписок:warning:")
-            await _send_message_channel_subscribers(post_text, not_exist_channel_ids)
-            await _delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
-            await _delete_channels_to_client(not_exist_channel_ids)
-            await _reload_listener()
-
-        if exist_channels:
-            table_text_arr = []
-            actuality_channel_ids = set(exist_channels.keys())
-
-            for index, id in enumerate(listen_channel_ids):
-                if id in actuality_channel_ids:
-                    table_text_arr.append(f'{index} - {exist_channels[id]}')
-
-            await message.answer('\n'.join(table_text_arr))
     else:
-        await message.answer(emojize("Все и сразу не получится:man_white_hair:"))
+        await message.answer(emojize("Все и сразу не получится:seedling:"))
         await message.answer(emojize("Сначала закончи предыдущие действия!"))
-
-
 
 
 @_DP.message_handler(commands=['on'], state='*')
@@ -144,16 +147,13 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(emojize("Тах тах, добавь сначала канал, "
                                          "куда я буду скидывать публикации "
                                          "твоих подписок /change_my_channel!"))
-            return
-
-        if not data.get('listen_channels'):
+        elif not data['listen_channels']:
             await message.answer(emojize("Все хорошо, только добавь сначала хотя бы один канал в подписки..."))
             await message.answer(emojize("Воспользуйся /add"))
-            return
-
-        async with state.proxy() as data:
-            data['is_listen'] = True
-        await message.answer(emojize(f"Лента запущена:rocket:"))
+        else:
+            async with state.proxy() as data:
+                data['is_listen'] = True
+            await message.answer(emojize(f"Лента запущена:rocket:"))
 
 
 @_DP.message_handler(commands=['off'], state='*')
@@ -192,7 +192,7 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     async with state.proxy() as data:
         data['tape_channel'] = list(exist_channels.keys())[0]
         if data.get('listen_channels') is not None:
-            await message.answer(emojize("Заменил:check_mark_button:"))
+            await message.answer(emojize("Запомнил:check_mark_button:"))
             await message.answer(emojize(f"Не забудь перезапустить ленту:smiling_face_with_smiling_eyes:"))
             await state.reset_state(with_data=False)
             return
@@ -238,6 +238,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/everything':
         await message.answer(emojize("Принял:handshake:"))
+        await message.answer(emojize("Воспользуйся /help"))
         await _reload_listener()
         await state.reset_state(with_data=False)
         return
