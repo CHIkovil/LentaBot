@@ -64,9 +64,8 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
             await message.answer(emojize("Внимаю:clapping_hands:"))
-            await message.answer(emojize("Какой канал хочешь удалить?"))
-            await message.answer(
-                emojize("Можешь просто кинуть его порядковый номер в списке твоих подписок:winking_face:"))
+            await message.answer(emojize("Накидывай каналы, которые хочешь удалить."))
+            await message.answer(emojize("Как закончишь скажи просто \n /everything"))
             await UpdateStates.enter_delete_listen_channel.set()
         else:
             await message.answer(emojize("Что мы решили удалить из подписок, если даже нет ни одной...."))
@@ -97,7 +96,9 @@ async def _on_help(message: bot_types.Message):
                                  ":check_mark_button: /add - добавляет новые каналы в подписки.\n"
                                  ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылки в телеграм, не общаясь со мной лицом к лицу.\n"
                                  "Главное в конце не забудь отправить мне команду /everything.)\n\n"
-                                 ":check_mark_button: /delete - удаляет канал из подписок.\n\n"
+                                 ":check_mark_button: /delete - удаляет каналы из подписок.\n"
+                                 ":thought_balloon:(После начала процесса удаления будет автоматически появляться команды на удаление твоих подписок.\n"
+                                 "Главное в конце не забудь отправить мне команду /everything.)\n\n"
                                  ":check_mark_button: /change_my_channel - заменяет канал на который будут приходить публикации от подписок.\n\n"
                                  ":clipboard: /subscriptions - показывает список подписок."
                                  ))
@@ -105,7 +106,10 @@ async def _on_help(message: bot_types.Message):
 
 @_DP.message_handler(commands=['subscriptions'], state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
-    if not (await state.get_state()):
+    state_name = await state.get_state()
+    delete_state_name = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
+                                                                                                                '', 1)
+    if not state_name or state_name == delete_state_name:
         listen_channel_ids = (await state.get_data())['listen_channels']
 
         if listen_channel_ids:
@@ -120,12 +124,8 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                 await _reload_listener()
 
             if exist_channels:
-                table_text_arr = []
-                actuality_channel_ids = set(exist_channels.keys())
-
-                for index, id in enumerate(listen_channel_ids):
-                    if id in actuality_channel_ids:
-                        table_text_arr.append(f'{index} - {exist_channels[id]}')
+                table_text_arr = [emojize("Твои подписки:clipboard:")] + list(map(lambda nickname: f"-> {nickname.replace('@', '/')}"
+                                    if state_name == delete_state_name else f"-> {nickname}",list(exist_channels.values())))
 
                 await message.answer('\n'.join(table_text_arr))
 
@@ -264,46 +264,37 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
 
 @_DP.message_handler(state=UpdateStates.enter_delete_listen_channel)
 async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
-    if message.text.isnumeric():
-        async with state.proxy() as data:
-            channel_ind = int(message.text)
-            if len(data['listen_channels']) > channel_ind:
-                listen_channels = data['listen_channels']
-                del_channel_id = listen_channels[channel_ind]
-            elif len(data['listen_channels']) == channel_ind:
-                await message.answer(emojize("Не забывай, что номера каналов в списке подписок начинаются с 0!"))
-                await message.answer(emojize("Учти это и попробуй снова:smiling_face_with_smiling_eyes:"))
-                return
-            else:
-                await message.answer(emojize("Тах тах, почему номер канала в твоих подписках "
-                                             "больше чем количество этих самых подписок?:face_with_hand_over_mouth:"))
-                await message.answer(emojize("Попробуй снова:oncoming_fist:"))
-                return
+    text = message.text
 
-    else:
-        exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
-
-        if not_exist_channel_entities:
-            await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
-            await message.answer(emojize("Исправь и снова скинь мне..."))
-            return
-
-        del_channel_id = list(exist_channels.keys())[0]
-        async with state.proxy() as data:
-            if del_channel_id not in set(data['listen_channels']):
-                await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
-                return
-
-    async with state.proxy() as data:
-        data['listen_channels'].remove(del_channel_id)
-        deleted_channel_ids = await _delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                 user_id=message.from_user.id)
-        if deleted_channel_ids:
-            await _delete_channels_to_client(deleted_channel_ids)
-            await _reload_listener()
-
-        await message.answer(emojize("Удалил:check_mark_button:"))
+    if text == '/everything':
+        await message.answer(emojize("Принял:handshake:"))
+        await message.answer(emojize("Воспользуйся /help"))
+        await _reload_listener()
         await state.reset_state(with_data=False)
+        return
+
+    if text[0] == '/':
+        text = '@' + text[1:]
+
+    exist_channels, not_exist_channel_entities = await _check_channels_exist([text])
+
+    if not_exist_channel_entities:
+        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
+        await message.answer(emojize("Исправь и снова скинь мне..."))
+        return
+
+    del_channel_id = list(exist_channels.keys())[0]
+    async with state.proxy() as data:
+        if del_channel_id in set(data['listen_channels']):
+            data['listen_channels'].remove(del_channel_id)
+            empty_users_channel_ids = await _delete_listen_channels_to_common_collection([del_channel_id],
+                                                                                         user_id=message.from_user.id)
+            if empty_users_channel_ids:
+                await _delete_channels_to_client(empty_users_channel_ids)
+
+            await message.answer(emojize("Удалил:check_mark_button:"))
+        else:
+            await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
 
 
 # SUPPORT
