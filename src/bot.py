@@ -14,6 +14,11 @@ class UpdateStates(StatesGroup):
     enter_delete_listen_channel = State()
 
 
+class SupportStates(StatesGroup):
+    switch_wish = State()
+    enter_wish = State()
+
+
 _BOT = Bot(token=conf.API_BOT_TOKEN)
 _STORAGE = MongoStorage(db_name=conf.APP_NAME)
 _DP = Dispatcher(_BOT, storage=_STORAGE)
@@ -168,6 +173,24 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
 
 
+@_DP.message_handler(commands=['wish'], state='*')
+async def _on_wish(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        text = await _get_user_wish(message.from_user.id)
+        if text:
+            await message.answer(emojize("Пожелание:sun:\n\n" + text))
+            await message.answer(emojize("Хочешь исправить?"))
+            await SupportStates.switch_wish.set()
+        else:
+            await message.answer(emojize("Что желаешь в будущих обновлениях?:NEW_button:"))
+            await message.answer(
+                emojize("Учти, что я смогу учесть только одно сообщение, так что напиши развернуто:pleading_face:"))
+            await SupportStates.enter_wish.set()
+    else:
+        await message.answer(emojize("Все и сразу не получится:seedling:"))
+        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+
+
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
     await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
@@ -296,6 +319,27 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
             await message.answer(emojize("Удалил:check_mark_button:"))
         else:
             await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
+
+
+@_DP.message_handler(state=SupportStates.enter_wish)
+async def _enter_wish(message: bot_types.Message, state: FSMContext):
+    if message.text == 'Да':
+        await message.answer(emojize("Внимательно слушаю!"))
+        await SupportStates.enter_wish.set()
+    elif message.text == 'Нет':
+        await message.answer(emojize("Понял, побежали дальше по делам:smiling_face_with_sunglasses:"))
+        await state.reset_state(with_data=False)
+    else:
+        await message.answer(emojize("Ну ладно, cчитаю, что нет..."))
+        await state.reset_state(with_data=False)
+
+
+@_DP.message_handler(state=SupportStates.enter_wish)
+async def _enter_wish(message: bot_types.Message, state: FSMContext):
+    await _add_user_wish(message.from_user.id, message.text)
+    await state.reset_state(with_data=False)
+    await message.answer(emojize("Услышал:sun_behind_cloud:"))
+    await message.answer(emojize("В дальнейшем сможешь переправить, если что:winking_face:"))
 
 
 # SUPPORT
@@ -453,6 +497,33 @@ async def _drop_tape_channel_for_user(user_id):
 
     await _stop_listen_for_user(user_id=user_id)
     await users_coll.update_one({"user": user_id}, {"$set": {"data.tape_channel": None}})
+
+async def _get_user_wish(user_id, db_name=conf.APP_NAME):
+    client = await _STORAGE.get_client()
+    db = client[db_name]
+    wish_coll = db[conf.WISH_COLL_NAME]
+
+    if conf.WISH_COLL_NAME in set(await db.list_collection_names()):
+        wish_obj = await wish_coll.find({"user": user_id})
+        if wish_obj:
+            return wish_obj['text']
+        else:
+            return None
+    else:
+        return None
+
+async def _add_user_wish(user_id,text, db_name=conf.APP_NAME):
+    client = await _STORAGE.get_client()
+    db = client[db_name]
+    wish_coll = db[conf.WISH_COLL_NAME]
+
+    if conf.WISH_COLL_NAME in set(await db.list_collection_names()):
+        wish_obj = await wish_coll.find({"user": user_id})
+        if wish_obj:
+            await wish_coll.update_one({"user": user_id}, {"$set": {"text": text}})
+        else:
+            data = {'user': user_id, 'text': text}
+            await wish_coll.insert_one(data)
 
 
 # LISTENER
