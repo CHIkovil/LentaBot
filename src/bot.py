@@ -22,6 +22,7 @@ class SupportStates(StatesGroup):
 
 class AdminStates(StatesGroup):
     get_statistics = State()
+    enter_post = State()
 
 
 _BOT = Bot(token=conf.API_BOT_TOKEN)
@@ -29,6 +30,29 @@ _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
 logging.basicConfig(level=logging.ERROR)
 _LOGGER = logging.getLogger(conf.APP_NAME)
+
+
+# ADMIN
+@_DP.message_handler(commands=['admin_post'], state='*')
+async def _on_post(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == conf.ADMIN_ID:
+            await message.answer(emojize("Внимаю создатель:star-struck:"))
+            await message.answer(emojize("Какой пост хотите опубликовать для всех пользователей?"))
+            await AdminStates.enter_post.set()
+        else:
+            await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
+            await message.answer("Воспользуйся /help")
+    else:
+        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
+        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+
+
+@_DP.message_handler(state=AdminStates.enter_post)
+async def _enter_post(message: bot_types.Message, state: FSMContext):
+    await message.answer(emojize("Опубликовал:love_letter:"))
+    await _send_message_all_users(emojize(":red_exclamation_mark::red_exclamation_mark::red_exclamation_mark: От создателя:smiling_face_with_sunglasses:: :red_exclamation_mark::red_exclamation_mark::red_exclamation_mark:\n\n" + message.text))
+    await state.reset_state(with_data=False)
 
 
 # COMMANDS
@@ -421,6 +445,16 @@ async def _notify_users_about_engineering_works(is_start):
             else emojize("А все, технические работы закончились:fire:")
         await _BOT.send_message(chat_id=obj["user"],
                                 text=text)
+
+
+async def _send_message_all_users(post_text):
+    client = await store.STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    async for obj in users_coll.find({}):
+        await _BOT.send_message(chat_id=obj["user"],
+                                text=post_text)
 
 
 # LISTENER
