@@ -251,6 +251,7 @@ async def _recreate_tape_channel(message: bot_types.Message, state: FSMContext):
         await message.answer(emojize(f"Ну что, пора переезжать на новый канал для ленты:clinking_beer_mugs:"))
         await message.answer(
             emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить меня как администратора!"))
+        await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
         await StartQuestionStates.enter_personal_channel.set()
     else:
         await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
@@ -465,7 +466,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                     await store.stop_listen_for_user(user['user'])
                 except Exception as err:
                     _LOGGER.error(err)
-            except (Unauthorized, ChatNotFound):
+            except Unauthorized:
                 try:
                     await _BOT.send_message(chat_id=user['user'],
                                             text=emojize(
@@ -473,7 +474,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                 f"в который я скидываю публикации твоих подписок?:anguished_face:"))
                     await _BOT.send_message(chat_id=user['user'],
                                             text=emojize(
-                                                f"Попробуй изменить свой канал /change_my_channel :smirking_face:"))
+                                                f"Попробуй изменить свой канал\n/change_my_channel :smirking_face:"))
                     await store.drop_tape_channel_for_user(user['user'])
                 except Unauthorized:
                     await store.stop_listen_for_user(user['user'])

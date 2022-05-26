@@ -12,6 +12,6 @@ from telethon.errors.rpcbaseerrors import AuthKeyError
 from aiogram import Bot, Dispatcher, executor, filters, types as bot_types
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.utils.callback_data import CallbackData
-from aiogram.utils.exceptions import ChatNotFound, Unauthorized, BotBlocked, BotKicked
+from aiogram.utils.exceptions import ChatNotFound, Unauthorized
 from aiogram.dispatcher import FSMContext
 
