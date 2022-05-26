@@ -1,5 +1,5 @@
 import pytest
-import conf
+from . import conf
 from store import save_new_listen_channels_to_common_collection, STORAGE
 
 _db_name = conf.APP_NAME + 'Test'

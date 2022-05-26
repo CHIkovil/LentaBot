@@ -1,4 +1,5 @@
-import conf
+
+from src.Support import conf
 from aiogram.contrib.fsm_storage.mongo import MongoStorage
 
 STORAGE = MongoStorage(db_name=conf.APP_NAME)
