@@ -20,6 +20,10 @@ class SupportStates(StatesGroup):
     enter_wish = State()
 
 
+class AdminStates(StatesGroup):
+    get_statistics = State()
+
+
 _BOT = Bot(token=conf.API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
@@ -235,7 +239,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         if del_channel_id in set(data['listen_channels']):
             data['listen_channels'].remove(del_channel_id)
             empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                         user_id=message.from_user.id)
+                                                                                              user_id=message.from_user.id)
             if empty_users_channel_ids:
                 await _delete_channels_to_client(empty_users_channel_ids)
 
@@ -278,8 +282,9 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                 await _reload_listener()
 
             if exist_channels:
-                table_text_arr = [emojize("Твои подписки:clipboard:")] + list(map(lambda nickname: f"-> {nickname.replace('@', '/')}"
-                                    if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
+                table_text_arr = [emojize("Твои подписки:clipboard:")] + list(
+                    map(lambda nickname: f"-> {nickname.replace('@', '/')}"
+                    if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
 
                 await message.answer('\n'.join(table_text_arr))
 
@@ -296,7 +301,8 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
         if text:
-            await message.answer(emojize("Твое пожелание:backhand_index_pointing_down:\n\n" + ':down_arrow::down_arrow::down_arrow:\n\n' + text + '\n\n:up_arrow::up_arrow::up_arrow:'))
+            await message.answer(emojize(
+                "Твое пожелание:backhand_index_pointing_down:\n\n" + ':down_arrow::down_arrow::down_arrow:\n\n' + text + '\n\n:up_arrow::up_arrow::up_arrow:'))
             await message.answer(emojize("Хочешь исправить?"))
             await SupportStates.switch_wish.set()
         else:
@@ -406,24 +412,19 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
 
 
 async def _notify_users_about_engineering_works(is_start):
-    client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    users_coll = db["aiogram_data"]
+    users = await store.get_all_users()
 
-    async for obj in users_coll.find({}):
-        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
-            else emojize("А все, технические работы закончились:fire:")
-        await _BOT.send_message(chat_id=obj["user"],
-                                text=text)
+    if users:
+        for obj in users:
+            text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
+                else emojize("А все, технические работы закончились:fire:")
+            await _BOT.send_message(chat_id=obj["user"],
+                                    text=text)
 
 
 # LISTENER
 async def _reload_listener():
-    client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
-
-    listen_channel_ids = [obj['id'] async for obj in channels_coll.find({})]
+    listen_channel_ids = await store.get_all_listen_channel_ids()
 
     if not listen_channel_ids:
         return
@@ -435,14 +436,8 @@ async def _reload_listener():
 
 
 async def _on_new_channel_message(event: events.NewMessage.Event):
-    client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
-    users_coll = db["aiogram_data"]
-
     listen_channel_id = abs(10 ** 12 + event.chat_id)
-    listen_users = [obj
-                    async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
-                                                               {"data.is_listen": True}]})]
+    listen_users = await store.get_is_listen_channel_users(listen_channel_id)
 
     if listen_users:
         for user in listen_users:
@@ -474,7 +469,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                                                 f"в который я скидываю публикации твоих подписок?:anguished_face:"))
                     await _BOT.send_message(chat_id=user['user'],
                                             text=emojize(
-                                                f"Попробуй изменить свой канал\n/change_my_channel :smirking_face:"))
+                                                f"Попробуй снова добавить свой канал\n/change_my_channel :smirking_face:"))
                     await store.drop_tape_channel_for_user(user['user'])
                 except Unauthorized:
                     await store.stop_listen_for_user(user['user'])

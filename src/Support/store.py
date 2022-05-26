@@ -4,6 +4,32 @@ from aiogram.contrib.fsm_storage.mongo import MongoStorage
 STORAGE = MongoStorage(db_name=conf.APP_NAME)
 
 
+async def get_all_users():
+    client = await STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    return [obj async for obj in users_coll.find({})]
+
+
+async def get_all_listen_channel_ids():
+    client = await STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    return [obj['id'] async for obj in channels_coll.find({})]
+
+
+async def get_is_listen_channel_users(listen_channel_id):
+    client = await STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    return [obj
+            async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
+                                                       {"data.is_listen": True}]})]
+
+
 async def check_channels_nickname_actuality_to_store(exist_channels):
     client = await STORAGE.get_client()
     db = client[conf.APP_NAME]
@@ -96,7 +122,7 @@ async def get_user_wish(user_id, db_name=conf.APP_NAME):
         return None
 
 
-async def add_user_wish(user_id,text, db_name=conf.APP_NAME):
+async def add_user_wish(user_id, text, db_name=conf.APP_NAME):
     client = await STORAGE.get_client()
     db = client[db_name]
     wish_coll = db[conf.WISH_COLL_NAME]
