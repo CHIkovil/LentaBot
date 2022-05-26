@@ -272,7 +272,7 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
 
         if listen_channel_ids:
             exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
-            await store.check_channels_nickname_actuality_to_store(exist_channels)
+            await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
             if not_exist_channel_ids:
                 post_text = emojize("больше не существует, "
                                     "поэтому он будет удален из ваших подписок:warning:")
@@ -412,14 +412,15 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
 
 
 async def _notify_users_about_engineering_works(is_start):
-    users = await store.get_all_users()
+    client = await store.STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
 
-    if users:
-        for obj in users:
-            text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
-                else emojize("А все, технические работы закончились:fire:")
-            await _BOT.send_message(chat_id=obj["user"],
-                                    text=text)
+    async for obj in users_coll.find({}):
+        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
+            else emojize("А все, технические работы закончились:fire:")
+        await _BOT.send_message(chat_id=obj["user"],
+                                text=text)
 
 
 # LISTENER
@@ -437,46 +438,49 @@ async def _reload_listener():
 
 async def _on_new_channel_message(event: events.NewMessage.Event):
     listen_channel_id = abs(10 ** 12 + event.chat_id)
-    listen_users = await store.get_is_listen_channel_users(listen_channel_id)
 
-    if listen_users:
-        for user in listen_users:
+    client = await store.STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
+                                               {"data.is_listen": True}]}):
+        try:
+            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
+            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
+                if message.forward.chat_id == event.chat_id:
+                    await _BOT.forward_message(chat_id=-(10 ** 12 + obj['data']['tape_channel']),
+                                               from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
+                                               message_id=message.id)
+                    break
+        except AuthKeyError:
             try:
-                await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
-                async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
-                    if message.forward.chat_id == event.chat_id:
-                        await _BOT.forward_message(chat_id=-(10 ** 12 + user['data']['tape_channel']),
-                                                   from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
-                                                   message_id=message.id)
-                        break
-            except AuthKeyError:
-                try:
-                    post_text = emojize("включил защиту на пересылку сообщений, "
-                                        "поэтому он будет удален из ваших подписок:warning:")
-                    await _send_message_channel_subscribers(post_text, [listen_channel_id])
-                    await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
-                    await _delete_channels_to_client([listen_channel_id])
-                    await _reload_listener()
-                except Unauthorized:
-                    await store.stop_listen_for_user(user['user'])
-                except Exception as err:
-                    _LOGGER.error(err)
+                post_text = emojize("включил защиту на пересылку сообщений, "
+                                    "поэтому он будет удален из ваших подписок:warning:")
+                await _send_message_channel_subscribers(post_text, [listen_channel_id])
+                await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
+                await _delete_channels_to_client([listen_channel_id])
+                await _reload_listener()
             except Unauthorized:
-                try:
-                    await _BOT.send_message(chat_id=user['user'],
-                                            text=emojize(
-                                                f"А что с каналом, "
-                                                f"в который я скидываю публикации твоих подписок?:anguished_face:"))
-                    await _BOT.send_message(chat_id=user['user'],
-                                            text=emojize(
-                                                f"Попробуй снова добавить свой канал\n/change_my_channel :smirking_face:"))
-                    await store.drop_tape_channel_for_user(user['user'])
-                except Unauthorized:
-                    await store.stop_listen_for_user(user['user'])
-                except Exception as err:
-                    _LOGGER.error(err)
+                await store.stop_listen_for_user(obj['user'])
             except Exception as err:
                 _LOGGER.error(err)
+        except Unauthorized:
+            try:
+                await _BOT.send_message(chat_id=obj['user'],
+                                        text=emojize(
+                                            f"А что с каналом, "
+                                            f"в который я скидываю публикации твоих подписок?:anguished_face:"))
+                await _BOT.send_message(chat_id=obj['user'],
+                                        text=emojize(
+                                            f"Попробуй снова добавить свой канал\n/change_my_channel :smirking_face:"))
+                await store.drop_tape_channel_for_user(obj['user'])
+            except Unauthorized:
+                await store.stop_listen_for_user(obj['user'])
+            except Exception as err:
+                _LOGGER.error(err)
+        except Exception as err:
+            _LOGGER.error(err)
 
 
 def run():
