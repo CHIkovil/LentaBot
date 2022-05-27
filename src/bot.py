@@ -3,6 +3,7 @@ import logging
 from Support import *
 from Support import conf
 from Support import store
+from Support.messages import bot_messages_ru
 
 
 class StartQuestionStates(StatesGroup):
@@ -58,37 +59,18 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
 # COMMANDS
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
-    await message.answer(emojize("Помощь, которую мы заслуживаем:backhand_index_pointing_down:\n\n"
-                                 f":rocket::stop_sign: /on, /off - вкл/выкл ленту, состоящую из публикаций каналов на которые ты подписал/ся-ась через меня.\n"
-                                 ":thought_balloon:(Приходит на твой личный канал, который мы добавили в самом начале нашего пути.)\n\n"
-                                 ":check_mark_button: /add - добавляет новые каналы в подписки.\n"
-                                 ":thought_balloon:(Можно быстро накидать ссылки каналов, с помощью пересылки в телеграм, не общаясь со мной лицом к лицу.\n"
-                                 "Главное в конце не забудь отправить мне команду /everything.)\n\n"
-                                 ":check_mark_button: /delete - удаляет каналы из подписок.\n"
-                                 ":thought_balloon:(После начала процесса можешь для быстрого удаления использовать /subscriptions, где уже будут"
-                                 " команды для удаления каждой подписки.\n"
-                                 "Главное в конце не забудь отправить мне команду /everything.)\n\n"
-                                 ":check_mark_button: /change_my_channel - заменяет канал на который будут приходить публикации от подписок.\n\n"
-                                 ":clipboard: /subscriptions - показывает список подписок.\n\n"
-                                 ":speech_balloon: /wish - добавляет пожелание в будущие обновления."
-                                 ))
+    await message.answer(bot_messages_ru['help'])
 
 
 @_DP.message_handler(commands=['start'], state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
-        await message.answer(emojize("Тута:eyes:"))
-        await message.answer(emojize("Ну смотри, для ленты нужно создать свой ПУБЛИЧНЫЙ канал!"))
-        await message.answer(emojize("Потом добавь меня "
-                                     "как администратора:smiling_face_with_sunglasses:"))
-        await message.answer(emojize("Учти, что правильность пунктов выше очень важна для нашей дружбы!"))
-        await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
+        for text in bot_messages_ru['start'][0]:
+            await message.answer(text)
         await StartQuestionStates.enter_personal_channel.set()
     else:
-        await message.answer(emojize(f"Мы уже начинали когда-то."))
-        await message.answer(emojize(f"Когда были моложе:grinning_face_with_sweat:"))
-        await message.answer(emojize(f"Не забудь перезапустить ленту!"))
-        await message.answer("Воспользуйся /help")
+        for text in bot_messages_ru['start'][1]:
+            await message.answer(text)
 
 
 @_DP.message_handler(state=StartQuestionStates.enter_personal_channel)
@@ -327,7 +309,7 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
         if text:
             await message.answer(emojize(
                 "Твое пожелание:backhand_index_pointing_down:\n\n" + ':down_arrow::down_arrow::down_arrow:\n\n' + text + '\n\n:up_arrow::up_arrow::up_arrow:'))
-            await message.answer(emojize("Хочешь исправить?"))
+            await message.answer(emojize("Хочешь исправить?(Да/Нет)"))
             await SupportStates.switch_wish.set()
         else:
             await message.answer(emojize("Что желаешь в будущих обновлениях?:speech_balloon:"))
