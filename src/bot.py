@@ -78,32 +78,27 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
     if not_exist_channel_entities:
-        await message.answer(emojize("Хмм..."))
-        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
+        for text in bot_messages_ru['new_tape'][0]:
+            await message.answer(text)
         return
 
     if not await _check_bot_is_channel_admin(list(exist_channels.keys())[0]):
-        await message.answer(emojize("Тах тах я не администратор этого канала:red_question_mark:"))
-        await message.answer(emojize("Жду cсылку на канал..."))
-        await message.answer(emojize("Учти, я проверю:smiling_face_with_horns:"))
+        for text in bot_messages_ru['new_tape'][1]:
+            await message.answer(text)
         return
 
     async with state.proxy() as data:
         data['tape_channel'] = list(exist_channels.keys())[0]
-        if data.get('listen_channels') is not None:
-            await message.answer(emojize("Запомнил:check_mark_button:"))
-            await message.answer(emojize(f"Не забудь перезапустить ленту:smiling_face_with_smiling_eyes:"))
-            await state.reset_state(with_data=False)
-            return
 
-        await message.answer(emojize("Далее перечисли ПУБЛИЧНЫЕ каналы из которых мы сформируем твою ЛИЧНУЮ ленту!"))
-        await message.answer(emojize("Через запятую конечно же."))
-        await message.answer(emojize("Можешь скинуть пока хотя бы одну, чтобы не тратить время..."))
-        await message.answer(
-            emojize("После того как познакомимся, сможешь быстро накидать мне остальные:winking_face_with_tongue:"))
-        await message.answer(emojize("Учти, что некоторые каналы могут запрещать пересылку сообщений."))
-        await message.answer(emojize("С такими мы не дружим:warning:"))
-        await StartQuestionStates.enter_initial_listen_channels.set()
+    if (await state.get_data())['listen_channels'] is not None:
+        for text in bot_messages_ru['new_tape'][2]:
+            await message.answer(text)
+        await state.reset_state(with_data=False)
+        return
+
+    for text in bot_messages_ru['new_tape'][3]:
+        await message.answer(text)
+    await StartQuestionStates.enter_initial_listen_channels.set()
 
 
 @_DP.message_handler(state=StartQuestionStates.enter_initial_listen_channels)
@@ -112,25 +107,28 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     exist_channels, not_exist_channel_entities = await _check_channels_exist(channels)
 
     if not_exist_channel_entities:
-        await message.answer("Что-то, но не каналы:\n"
-                             f"{','.join(not_exist_channel_entities)}\n")
-        if exist_channels:
-            await message.answer("Существующие каналы:\n"
-                                 f"{','.join(list(exist_channels.values()))}\n")
+        for text in bot_messages_ru['init_listen'][0]:
+            await message.answer(text + f"{','.join(not_exist_channel_entities)}\n")
 
-        await message.answer("Внеси исправления и снова скинь все мне!")
-        await message.answer(emojize("Не забудь про запятую:smiling_face_with_horns:"))
+        if exist_channels:
+            for text in bot_messages_ru['init_listen'][1]:
+                await message.answer(text + f"{','.join(list(exist_channels.values()))}\n")
+
+        for text in bot_messages_ru['init_listen'][2]:
+            await message.answer(text)
         return
+
+    for text in bot_messages_ru['init_listen'][3]:
+        await message.answer(text)
 
     async with state.proxy() as data:
         data['listen_channels'] = list(exist_channels.keys())
         data['is_listen'] = False
-        await _join_new_listen_channels_to_client(list(exist_channels.keys()))
-        await store.save_new_listen_channels_to_common_collection(exist_channels, user_id=message.from_user.id)
-        await _reload_listener()
-        await message.answer(emojize("Все запомнил:OK_hand:"))
-        await message.answer("Воспользуйся /help")
-        await state.reset_state(with_data=False)
+
+    await _join_new_listen_channels_to_client(list(exist_channels.keys()))
+    await store.save_new_listen_channels_to_common_collection(exist_channels, user_id=message.from_user.id)
+    await _reload_listener()
+    await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(commands=['on'], state='*')
