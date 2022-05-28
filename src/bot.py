@@ -135,19 +135,21 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 async def _start_tape(message: bot_types.Message, state: FSMContext):
     data = await state.get_data()
     if data['is_listen']:
-        await message.answer(emojize("Как бы лента уже запущена:grinning_face_with_sweat:"))
+        for text in bot_messages_ru['start_tape'][0]:
+            await message.answer(text)
     else:
         if data.get('tape_channel') is None:
-            await message.answer(emojize("Тах тах, добавь сначала канал, "
-                                         "куда я буду скидывать публикации "
-                                         "твоих подписок /change_my_channel!"))
+            for text in bot_messages_ru['start_tape'][1]:
+                await message.answer(text)
         elif not data['listen_channels']:
-            await message.answer(emojize("Все хорошо, только добавь сначала хотя бы один канал в подписки..."))
-            await message.answer(emojize("Воспользуйся /add"))
+            for text in bot_messages_ru['start_tape'][2]:
+                await message.answer(text)
         else:
+            for text in bot_messages_ru['start_tape'][3]:
+                await message.answer(text)
+
             async with state.proxy() as data:
                 data['is_listen'] = True
-            await message.answer(emojize(f"Лента запущена:rocket:"))
 
 
 @_DP.message_handler(commands=['off'], state='*')
