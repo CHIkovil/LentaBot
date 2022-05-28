@@ -7,7 +7,7 @@ from Support.messages import bot_messages_ru
 
 
 class StartQuestionStates(StatesGroup):
-    enter_personal_channel = State()
+    enter_tape_channel = State()
     enter_initial_listen_channels = State()
 
 
@@ -67,23 +67,23 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         for text in bot_messages_ru['start'][0]:
             await message.answer(text)
-        await StartQuestionStates.enter_personal_channel.set()
+        await StartQuestionStates.enter_tape_channel.set()
     else:
         for text in bot_messages_ru['start'][1]:
             await message.answer(text)
 
 
-@_DP.message_handler(state=StartQuestionStates.enter_personal_channel)
-async def _enter_personal_channel(message: bot_types.Message, state: FSMContext):
+@_DP.message_handler(state=StartQuestionStates.enter_tape_channel)
+async def _enter_tape_channel(message: bot_types.Message, state: FSMContext):
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
     if not_exist_channel_entities:
-        for text in bot_messages_ru['new_tape'][0]:
+        for text in bot_messages_ru['enter_new_tape'][0]:
             await message.answer(text)
         return
 
     if not await _check_bot_is_channel_admin(list(exist_channels.keys())[0]):
-        for text in bot_messages_ru['new_tape'][1]:
+        for text in bot_messages_ru['enter_new_tape'][1]:
             await message.answer(text)
         return
 
@@ -91,12 +91,12 @@ async def _enter_personal_channel(message: bot_types.Message, state: FSMContext)
         data['tape_channel'] = list(exist_channels.keys())[0]
 
     if (await state.get_data())['listen_channels'] is not None:
-        for text in bot_messages_ru['new_tape'][2]:
+        for text in bot_messages_ru['enter_new_tape'][2]:
             await message.answer(text)
         await state.reset_state(with_data=False)
         return
 
-    for text in bot_messages_ru['new_tape'][3]:
+    for text in bot_messages_ru['enter_new_tape'][3]:
         await message.answer(text)
     await StartQuestionStates.enter_initial_listen_channels.set()
 
@@ -107,18 +107,18 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     exist_channels, not_exist_channel_entities = await _check_channels_exist(channels)
 
     if not_exist_channel_entities:
-        for text in bot_messages_ru['init_listen'][0]:
+        for text in bot_messages_ru['enter_init_listen'][0]:
             await message.answer(text + f"{','.join(not_exist_channel_entities)}\n")
 
         if exist_channels:
-            for text in bot_messages_ru['init_listen'][1]:
+            for text in bot_messages_ru['enter_init_listen'][1]:
                 await message.answer(text + f"{','.join(list(exist_channels.values()))}\n")
 
-        for text in bot_messages_ru['init_listen'][2]:
+        for text in bot_messages_ru['enter_init_listen'][2]:
             await message.answer(text)
         return
 
-    for text in bot_messages_ru['init_listen'][3]:
+    for text in bot_messages_ru['enter_init_listen'][3]:
         await message.answer(text)
 
     async with state.proxy() as data:
@@ -155,24 +155,25 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['off'], state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['is_listen']:
+        for text in bot_messages_ru['stop_tape'][0]:
+            await message.answer(text)
+
         async with state.proxy() as data:
             data['is_listen'] = False
-        await message.answer(
-            emojize(f"Лента остановлена :stop_sign:"))
     else:
-        await message.answer(emojize("Как остановить то, что даже не запустили:smiling_face_with_tear:"))
+        for text in bot_messages_ru['stop_tape'][1]:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=['add'], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        await message.answer(emojize("Слушаю:ear:"))
-        await message.answer(emojize("Накидывай каналы, которые хочешь добавить."))
-        await message.answer(emojize("Как закончишь скажи просто \n /everything"))
+        for text in bot_messages_ru['add_listen'][0]:
+            await message.answer(text)
         await UpdateStates.enter_add_listen_channels.set()
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['add_listen'][1]:
+            await message.answer(text)
 
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
@@ -255,14 +256,14 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
 
 @_DP.message_handler(commands=['change_my_channel'], state='*')
-async def _recreate_tape_channel(message: bot_types.Message, state: FSMContext):
+async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await store.drop_tape_channel_for_user(message.from_user.id)
         await message.answer(emojize(f"Ну что, пора переезжать на новый канал для ленты:clinking_beer_mugs:"))
         await message.answer(
             emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить меня как администратора!"))
         await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
-        await StartQuestionStates.enter_personal_channel.set()
+        await StartQuestionStates.enter_tape_channel.set()
     else:
         await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
         await message.answer(emojize("Сначала закончи предыдущие действия!"))
