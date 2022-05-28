@@ -96,6 +96,22 @@ add_listen_ru = ((
                      "Сначала закончи предыдущие действия!"
                  ))
 
+enter_add_listen_ru = ((
+                           "Принял🤝",
+                           "Воспользуйся /help"
+                       ),
+                       (
+                           "Что-то не похоже на канал🤔",
+                           "Исправь и снова скинь мне..."
+                       ),
+                       (
+                           "Добавил✅",
+                       ),
+                       (
+                           "Канал уже есть в твоих подписках...",
+                           "Давай другой😁"
+                       ))
+
 bot_messages_ru = {
     'help': help_ru,
     'start': start_ru,
@@ -103,5 +119,6 @@ bot_messages_ru = {
     'enter_init_listen': enter_init_listen_ru,
     'start_tape': start_tape_ru,
     'stop_tape': stop_tape_ru,
-    'add_listen': add_listen_ru
+    'add_listen': add_listen_ru,
+    'enter_add_listen': enter_add_listen_ru
 }

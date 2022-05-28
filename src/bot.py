@@ -179,8 +179,8 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/everything':
-        await message.answer(emojize("Принял:handshake:"))
-        await message.answer(emojize("Воспользуйся /help"))
+        for text in bot_messages_ru['enter_add_listen'][0]:
+            await message.answer(text)
         await _reload_listener()
         await state.reset_state(with_data=False)
         return
@@ -188,20 +188,23 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
     if not_exist_channel_entities:
-        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
-        await message.answer(emojize("Исправь и снова скинь мне..."))
+        for text in bot_messages_ru['enter_add_listen'][1]:
+            await message.answer(text)
         return
 
     async with state.proxy() as data:
         new_channel_id = list(exist_channels.keys())[0]
         if new_channel_id not in set(data['listen_channels']):
             data['listen_channels'].append(new_channel_id)
-            await _join_new_listen_channels_to_client([new_channel_id])
-            await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
-            await message.answer(emojize("Добавил:check_mark_button:"))
         else:
-            await message.answer(emojize("Канал уже есть в твоих подписках..."))
-            await message.answer(emojize("Давай другой:beaming_face_with_smiling_eyes:"))
+            for text in bot_messages_ru['enter_add_listen'][3]:
+                await message.answer(text)
+            return
+
+    await _join_new_listen_channels_to_client([new_channel_id])
+    await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
+    for text in bot_messages_ru['enter_add_listen'][2]:
+        await message.answer(text)
 
 
 @_DP.message_handler(commands=['delete'], state='*')
