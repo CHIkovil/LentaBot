@@ -38,21 +38,23 @@ _LOGGER = logging.getLogger(conf.APP_NAME)
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == conf.ADMIN_ID:
-            await message.answer(emojize("Внимаю создатель:star-struck:"))
-            await message.answer(emojize("Какой пост хотите опубликовать для всех пользователей?"))
+            await message.answer("Внимаю создатель🤩")
+            await message.answer("Какой пост хотите опубликовать для всех пользователей?")
             await AdminStates.enter_post.set()
         else:
-            await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
-            await message.answer("Воспользуйся /help")
+            for text in bot_messages_ru['echo']:
+                await message.answer(text)
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
-    await message.answer(emojize("Опубликовал:love_letter:"))
-    await _send_message_all_users(emojize(":red_exclamation_mark::red_exclamation_mark::red_exclamation_mark: От создателя:smiling_face_with_sunglasses:: :red_exclamation_mark::red_exclamation_mark::red_exclamation_mark:\n\n" + message.text))
+    await message.answer("Опубликовал💌")
+    await _send_message_all_users("❗❗❗ "
+                                  "От создателя😎: "
+                                  "❗❗❗\n\n" + message.text)
     await state.reset_state(with_data=False)
 
 
@@ -168,18 +170,18 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['add'], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        for text in bot_messages_ru['add_listen'][0]:
+        for text in bot_messages_ru['add_listen']:
             await message.answer(text)
         await UpdateStates.enter_add_listen_channels.set()
     else:
-        for text in bot_messages_ru['add_listen'][1]:
+        for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
 
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/everything':
-        for text in bot_messages_ru['enter_add_listen'][0]:
+        for text in bot_messages_ru['everything']:
             await message.answer(text)
         await _reload_listener()
         await state.reset_state(with_data=False)
@@ -188,7 +190,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
 
     if not_exist_channel_entities:
-        for text in bot_messages_ru['enter_add_listen'][1]:
+        for text in bot_messages_ru['enter_add_listen'][0]:
             await message.answer(text)
         return
 
@@ -197,30 +199,29 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
         if new_channel_id not in set(data['listen_channels']):
             data['listen_channels'].append(new_channel_id)
         else:
-            for text in bot_messages_ru['enter_add_listen'][3]:
+            for text in bot_messages_ru['enter_add_listen'][1]:
                 await message.answer(text)
             return
 
-    await _join_new_listen_channels_to_client([new_channel_id])
-    await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
     for text in bot_messages_ru['enter_add_listen'][2]:
         await message.answer(text)
+    await _join_new_listen_channels_to_client([new_channel_id])
+    await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
 
 @_DP.message_handler(commands=['delete'], state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
-            await message.answer(emojize("Внимаю:clapping_hands:"))
-            await message.answer(emojize("Накидывай каналы, которые хочешь удалить."))
-            await message.answer(emojize("Как закончишь скажи просто \n /everything"))
+            for text in bot_messages_ru['delete_listen'][0]:
+                await message.answer(text)
             await UpdateStates.enter_delete_listen_channel.set()
         else:
-            await message.answer(emojize("Что мы решили удалить из подписок, если даже нет ни одной...."))
-            await message.answer(emojize("Сначала добавь хоть одну /add"))
+            for text in bot_messages_ru['delete_listen'][1]:
+                await message.answer(text)
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(state=UpdateStates.enter_delete_listen_channel)
@@ -228,9 +229,8 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     text = message.text
 
     if text == '/everything':
-        await message.answer(emojize("Принял:handshake:"))
-        await message.answer(emojize("Воспользуйся /help"))
-        await _reload_listener()
+        for text in bot_messages_ru['everything']:
+            await message.answer(text)
         await state.reset_state(with_data=False)
         return
 
@@ -240,36 +240,39 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     exist_channels, not_exist_channel_entities = await _check_channels_exist([text])
 
     if not_exist_channel_entities:
-        await message.answer(emojize("Что-то не похоже на канал:thinking_face:"))
-        await message.answer(emojize("Исправь и снова скинь мне..."))
+        for text in bot_messages_ru['enter_delete_listen'][0]:
+            await message.answer(text)
         return
 
     del_channel_id = list(exist_channels.keys())[0]
     async with state.proxy() as data:
         if del_channel_id in set(data['listen_channels']):
             data['listen_channels'].remove(del_channel_id)
-            empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                              user_id=message.from_user.id)
-            if empty_users_channel_ids:
-                await _delete_channels_to_client(empty_users_channel_ids)
 
-            await message.answer(emojize("Удалил:check_mark_button:"))
         else:
-            await message.answer(emojize("Такого канала нет в твоих подписках:thinking_face:"))
+            for text in bot_messages_ru['enter_delete_listen'][1]:
+                await message.answer(text)
+            return
+
+    for text in bot_messages_ru['enter_delete_listen'][2]:
+        await message.answer(text)
+
+    empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
+                                                                                      user_id=message.from_user.id)
+    if empty_users_channel_ids:
+        await _delete_channels_to_client(empty_users_channel_ids)
 
 
 @_DP.message_handler(commands=['change_my_channel'], state='*')
 async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await store.drop_tape_channel_for_user(message.from_user.id)
-        await message.answer(emojize(f"Ну что, пора переезжать на новый канал для ленты:clinking_beer_mugs:"))
-        await message.answer(
-            emojize(f"Напомню, для ленты нужно создать свой ПУБЛИЧНЫЙ канал и добавить меня как администратора!"))
-        await message.answer(emojize("Какая ссылка на твой личный канал, чтобы не запутаться?"))
+        for text in bot_messages_ru['change_tape']:
+            await message.answer(text)
         await StartQuestionStates.enter_tape_channel.set()
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=['subscriptions'], state='*')
@@ -283,27 +286,24 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
         if listen_channel_ids:
             exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
             await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
-            if not_exist_channel_ids:
-                post_text = emojize("больше не существует, "
-                                    "поэтому он будет удален из ваших подписок:warning:")
-                await _send_message_channel_subscribers(post_text, not_exist_channel_ids)
-                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
-                await _delete_channels_to_client(not_exist_channel_ids)
-                await _reload_listener()
 
             if exist_channels:
-                table_text_arr = [emojize("Твои подписки:clipboard:")] + list(
+                table_text_arr = list(bot_messages_ru['subscriptions'][0]) + list(
                     map(lambda nickname: f"-> {nickname.replace('@', '/')}"
                     if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
 
                 await message.answer('\n'.join(table_text_arr))
 
+            if not_exist_channel_ids:
+                await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
+                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+                await _delete_channels_to_client(not_exist_channel_ids)
         else:
-            await message.answer(emojize("Cначала добавь хотя бы одну подписку:smiling_face_with_open_hands:"))
-            await message.answer(emojize("Воспользуйся /add"))
+            for text in bot_messages_ru['subscriptions'][1]:
+                await message.answer(text)
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=['wish'], state='*')
@@ -311,45 +311,48 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
         if text:
-            await message.answer(emojize(
-                "Твое пожелание:backhand_index_pointing_down:\n\n" + ':down_arrow::down_arrow::down_arrow:\n\n' + text + '\n\n:up_arrow::up_arrow::up_arrow:'))
-            await message.answer(emojize("Хочешь исправить?(Да/Нет)"))
+            await message.answer(
+                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2])
+            for text in bot_messages_ru['wish'][1]:
+                await message.answer(text)
             await SupportStates.switch_wish.set()
         else:
-            await message.answer(emojize("Что желаешь в будущих обновлениях?:speech_balloon:"))
-            await message.answer(
-                emojize("Учти, что я смогу учесть только одно сообщение, так что напиши развернуто:pleading_face:"))
+            for text in bot_messages_ru['wish'][2]:
+                await message.answer(text)
             await SupportStates.enter_wish.set()
     else:
-        await message.answer(emojize("Все и сразу не получится:recycling_symbol:"))
-        await message.answer(emojize("Сначала закончи предыдущие действия!"))
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(state=SupportStates.switch_wish)
 async def _switch_wish(message: bot_types.Message, state: FSMContext):
     if message.text == 'Да':
-        await message.answer(emojize("Понял, внимаю:smirking_face:"))
+        for text in bot_messages_ru['switch_wish'][0]:
+            await message.answer(text)
         await SupportStates.enter_wish.set()
     elif message.text == 'Нет':
-        await message.answer(emojize("Понял, побежали дальше по делам:smiling_face_with_sunglasses:"))
+        for text in bot_messages_ru['switch_wish'][1]:
+            await message.answer(text)
         await state.reset_state(with_data=False)
     else:
-        await message.answer(emojize("Ну ладно, cчитаю, что нет:smiling_face_with_horns:"))
+        for text in bot_messages_ru['switch_wish'][2]:
+            await message.answer(text)
         await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(state=SupportStates.enter_wish)
 async def _enter_wish(message: bot_types.Message, state: FSMContext):
+    for text in bot_messages_ru['enter_wish']:
+        await message.answer(text)
     await store.add_user_wish(message.from_user.id, message.text)
     await state.reset_state(with_data=False)
-    await message.answer(emojize("Принял:OK_hand:"))
-    await message.answer(emojize("В дальнейшем,если что сможешь переправить:winking_face:"))
 
 
 @_DP.message_handler()
 async def _echo(message: bot_types.Message):
-    await message.answer(emojize("Тах тах не флуди...:oncoming_fist:"))
-    await message.answer("Воспользуйся /help")
+    for text in bot_messages_ru['echo']:
+        await message.answer(text)
 
 
 # CHECK
@@ -416,9 +419,9 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
     async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
         async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
             await _BOT.send_message(chat_id=obj["user"],
-                                    text=emojize(
-                                        f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
-                                        + post_text))
+                                    text=
+                                    f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
+                                    + post_text)
 
 
 async def _notify_users_about_engineering_works(is_start):
@@ -427,8 +430,8 @@ async def _notify_users_about_engineering_works(is_start):
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
-        text = emojize("Don't worry, проводятся технические работы:man_technologist:") if not is_start \
-            else emojize("А все, технические работы закончились:fire:")
+        text = bot_messages_ru['engineering_works'][0] if not is_start \
+            else bot_messages_ru['engineering_works'][1]
         await _BOT.send_message(chat_id=obj["user"],
                                 text=text)
 
@@ -475,9 +478,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                     break
         except AuthKeyError:
             try:
-                post_text = emojize("включил защиту на пересылку сообщений, "
-                                    "поэтому он будет удален из ваших подписок:warning:")
-                await _send_message_channel_subscribers(post_text, [listen_channel_id])
+                await _send_message_channel_subscribers(bot_messages_ru['channel_on_protection'], [listen_channel_id])
                 await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
                 await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
@@ -487,13 +488,9 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                 _LOGGER.error(err)
         except Unauthorized:
             try:
-                await _BOT.send_message(chat_id=obj['user'],
-                                        text=emojize(
-                                            f"А что с каналом, "
-                                            f"в который я скидываю публикации твоих подписок?:anguished_face:"))
-                await _BOT.send_message(chat_id=obj['user'],
-                                        text=emojize(
-                                            f"Попробуй снова добавить свой канал\n/change_my_channel :smirking_face:"))
+                for text in bot_messages_ru['tape_not_exist']:
+                    await _BOT.send_message(chat_id=obj['user'],
+                                            text=text)
                 await store.drop_tape_channel_for_user(obj['user'])
             except Unauthorized:
                 await store.stop_listen_for_user(obj['user'])
