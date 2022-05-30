@@ -1,5 +1,4 @@
 import time
-from emoji import emojize
 import asyncio
 import bson
 import re

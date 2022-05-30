@@ -22,7 +22,6 @@ class SupportStates(StatesGroup):
 
 
 class AdminStates(StatesGroup):
-    get_statistics = State()
     enter_post = State()
 
 
@@ -56,6 +55,25 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
                                   "От создателя😎: "
                                   "❗❗❗\n\n" + message.text)
     await state.reset_state(with_data=False)
+
+
+@_DP.message_handler(commands=['admin_statistics'], state='*')
+async def _get_statistics(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == conf.ADMIN_ID:
+            all_users_len = len(await store.get_all_users())
+            all_listen_users = len(await store.get_all_listen_users())
+            all_listen_channels_len = len(await store.get_all_listen_channel_ids())
+
+            await message.answer("Статистика📋:\n" + f'Всего пользователей🧘‍: ↔ {all_users_len}\n'
+                                                     f'Всего лент запущено👂: ↔ {all_listen_users}\n'
+                                                     f'Всего каналов 🌍: ↔ {all_listen_channels_len}\n')
+        else:
+            for text in bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 # COMMANDS

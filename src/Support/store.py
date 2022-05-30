@@ -1,8 +1,23 @@
-
 from src.Support import conf
 from aiogram.contrib.fsm_storage.mongo import MongoStorage
 
 STORAGE = MongoStorage(db_name=conf.APP_NAME)
+
+
+async def get_all_listen_users():
+    client = await STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    return [obj async for obj in users_coll.find({"data.is_listen": True})]
+
+
+async def get_all_users():
+    client = await STORAGE.get_client()
+    db = client[conf.APP_NAME]
+    users_coll = db["aiogram_data"]
+
+    return [obj async for obj in users_coll.find({})]
 
 
 async def get_all_listen_channel_ids():
