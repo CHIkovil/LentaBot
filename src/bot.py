@@ -33,7 +33,23 @@ _LOGGER = logging.getLogger(conf.APP_NAME)
 
 
 # ADMIN
-@_DP.message_handler(commands=['admin_post'], state='*')
+@_DP.message_handler(commands=['a'], state='*')
+async def _on_post(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == conf.ADMIN_ID:
+            keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+            buttons = ["/post", "/statistics"]
+            keyboard.add(*buttons)
+            await message.answer("Чего желаете создатель?😁", reply_markup=keyboard)
+        else:
+            for text in bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(commands=['post'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == conf.ADMIN_ID:
@@ -50,15 +66,14 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
-    await message.answer("Опубликовал💌")
-
+    await message.answer("Опубликовал💌", reply_markup=bot_types.ReplyKeyboardRemove())
     await _send_message_all_users("❗❗❗ "
                                   "От создателя😎: "
                                   "❗❗❗\n\n" + message.text)
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(commands=['admin_statistics'], state='*')
+@_DP.message_handler(commands=['statistics'], state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == conf.ADMIN_ID:
@@ -66,9 +81,10 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_listen_users = len(await store.get_all_listen_users())
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
 
-            await message.answer("Статистика📋:\n" + f'Всего пользователей🧘‍: ↔ {all_users_len}\n'
-                                                     f'Всего лент запущено👂: ↔ {all_listen_users}\n'
-                                                     f'Всего каналов 🌍: ↔ {all_listen_channels_len}\n')
+            await message.answer("Общая статистика📋:\n" + '▶▶▶\n' + f'Всего пользователей🧘‍: ↔ {all_users_len}\n'
+                                                                     f'Всего лент запущено👂: ↔ {all_listen_users}\n'
+                                                                     f'Всего каналов 🌍: ↔ {all_listen_channels_len}\n',
+                                 reply_markup=bot_types.ReplyKeyboardRemove())
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
@@ -81,8 +97,6 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
     await message.answer(bot_messages_ru['help'])
-    if message.from_user.id == conf.ADMIN_ID:
-        await message.answer(bot_messages_ru['admin_help'])
 
 
 @_DP.message_handler(commands=['start'], state='*')
