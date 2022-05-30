@@ -51,6 +51,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     await message.answer("Опубликовал💌")
+
     await _send_message_all_users("❗❗❗ "
                                   "От создателя😎: "
                                   "❗❗❗\n\n" + message.text)
@@ -80,6 +81,8 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['help'])
 async def _on_help(message: bot_types.Message):
     await message.answer(bot_messages_ru['help'])
+    if message.from_user.id == conf.ADMIN_ID:
+        await message.answer(bot_messages_ru['admin_help'])
 
 
 @_DP.message_handler(commands=['start'], state='*')
@@ -311,13 +314,15 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                     if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
 
                 await message.answer('\n'.join(table_text_arr))
+            else:
+                await message.answer(bot_messages_ru['subscriptions'][1])
 
             if not_exist_channel_ids:
                 await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
                 await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
                 await _delete_channels_to_client(not_exist_channel_ids)
         else:
-            for text in bot_messages_ru['subscriptions'][1]:
+            for text in bot_messages_ru['subscriptions'][2]:
                 await message.answer(text)
     else:
         for text in bot_messages_ru['state_if_exist']:
@@ -460,8 +465,13 @@ async def _send_message_all_users(post_text):
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
-        await _BOT.send_message(chat_id=obj["user"],
-                                text=post_text)
+        try:
+            await _BOT.send_message(chat_id=obj["user"],
+                                    text=post_text)
+        except Unauthorized:
+            pass
+        except Exception as err:
+            _LOGGER.error(err)
 
 
 # LISTENER
