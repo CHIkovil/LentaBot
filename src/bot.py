@@ -94,11 +94,6 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 
 
 # COMMANDS
-@_DP.message_handler(commands=['help'])
-async def _on_help(message: bot_types.Message):
-    await message.answer(bot_messages_ru['help'])
-
-
 @_DP.message_handler(commands=['start'], state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
@@ -202,6 +197,48 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
+@_DP.message_handler(commands=['help'], state='*')
+async def _on_help(message: bot_types.Message, state:FSMContext):
+    if not (await state.get_state()):
+        await message.answer(bot_messages_ru['help'])
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(commands=['subscriptions'], state='*')
+async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
+    state_name = await state.get_state()
+    delete_state_name = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
+                                                                                                                '', 1)
+    if not state_name or state_name == delete_state_name:
+        listen_channel_ids = (await state.get_data())['listen_channels']
+
+        if listen_channel_ids:
+            exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
+            await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
+
+            if exist_channels:
+                table_text_arr = list(bot_messages_ru['subscriptions'][0]) + list(
+                    map(lambda nickname: f"-> {nickname.replace('@', '/')}"
+                    if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
+
+                await message.answer('\n'.join(table_text_arr))
+            else:
+                await message.answer(bot_messages_ru['subscriptions'][1])
+
+            if not_exist_channel_ids:
+                await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
+                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+                await _delete_channels_to_client(not_exist_channel_ids)
+        else:
+            for text in bot_messages_ru['subscriptions'][2]:
+                await message.answer(text)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
 @_DP.message_handler(commands=['add'], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
@@ -269,8 +306,11 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         await state.reset_state(with_data=False)
         return
 
-    if text[0] == '/':
+    if text[0] == '/' and text != '/subscriptions':
         text = '@' + text[1:]
+    else:
+        await _get_subscriptions_table(message=message, state=state)
+        return
 
     exist_channels, not_exist_channel_entities = await _check_channels_exist([text])
 
@@ -291,53 +331,21 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
     for text in bot_messages_ru['enter_delete_listen'][2]:
         await message.answer(text)
+    await _get_subscriptions_table(message=message, state=state)
 
     empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                      user_id=message.from_user.id)
+                                                                                  user_id=message.from_user.id)
     if empty_users_channel_ids:
         await _delete_channels_to_client(empty_users_channel_ids)
 
 
-@_DP.message_handler(commands=['change_my_channel'], state='*')
+@_DP.message_handler(commands=['change_tape_channel'], state='*')
 async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await store.drop_tape_channel_for_user(message.from_user.id)
         for text in bot_messages_ru['change_tape']:
             await message.answer(text)
         await StartQuestionStates.enter_tape_channel.set()
-    else:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-
-
-@_DP.message_handler(commands=['subscriptions'], state='*')
-async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
-    state_name = await state.get_state()
-    delete_state_name = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
-                                                                                                                '', 1)
-    if not state_name or state_name == delete_state_name:
-        listen_channel_ids = (await state.get_data())['listen_channels']
-
-        if listen_channel_ids:
-            exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
-            await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
-
-            if exist_channels:
-                table_text_arr = list(bot_messages_ru['subscriptions'][0]) + list(
-                    map(lambda nickname: f"-> {nickname.replace('@', '/')}"
-                    if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
-
-                await message.answer('\n'.join(table_text_arr))
-            else:
-                await message.answer(bot_messages_ru['subscriptions'][1])
-
-            if not_exist_channel_ids:
-                await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
-                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
-                await _delete_channels_to_client(not_exist_channel_ids)
-        else:
-            for text in bot_messages_ru['subscriptions'][2]:
-                await message.answer(text)
     else:
         for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
