@@ -339,7 +339,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         await _delete_channels_to_client(empty_users_channel_ids)
 
 
-@_DP.message_handler(commands=['change_tape_channel'], state='*')
+@_DP.message_handler(commands=['change_feed_channel'], state='*')
 async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await store.drop_tape_channel_for_user(message.from_user.id)
