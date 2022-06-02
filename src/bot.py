@@ -1,7 +1,6 @@
 import logging
 
 from Support import *
-from Support import conf
 from Support import store
 from Support.messages import bot_messages_ru
 
@@ -9,6 +8,30 @@ from Support.messages import bot_messages_ru
 class StartQuestionStates(StatesGroup):
     enter_tape_channel = State()
     enter_initial_listen_channels = State()
+
+
+API_ID = int(os.environ.get('API_ID'))
+API_HASH = os.environ.get('API_HASH')
+API_BOT_TOKEN = os.environ.get('API_BOT_TOKEN')
+
+PHONE = os.environ.get('PHONE')
+ADMIN_ID = int(os.environ.get('ADMIN_ID'))
+
+MONGO_URL = os.environ.get('MONGO_URL')
+APP_NAME = os.environ.get('APP_NAME')
+
+WISH_COLL_NAME = os.environ.get('WISH_COLL_NAME')
+LISTEN_CHANNELS_COLL_NAME = os.environ.get('LISTEN_CHANNELS_COLL_NAME')
+
+MAIN_TAPE_CHANNEL_NAME = os.environ.get('MAIN_TAPE_CHANNEL_NAME')
+MAIN_TAPE_CHANNEL_ID = int(os.environ.get('MAIN_TAPE_CHANNEL_ID'))
+
+
+_BOT = Bot(token=API_BOT_TOKEN)
+_DP = Dispatcher(_BOT, storage=store.STORAGE)
+_CLIENT = TelegramClient(APP_NAME, api_id=API_ID, api_hash=API_HASH)
+logging.basicConfig(level=logging.ERROR)
+_LOGGER = logging.getLogger(APP_NAME)
 
 
 class UpdateStates(StatesGroup):
@@ -25,18 +48,11 @@ class AdminStates(StatesGroup):
     enter_post = State()
 
 
-_BOT = Bot(token=conf.API_BOT_TOKEN)
-_DP = Dispatcher(_BOT, storage=store.STORAGE)
-_CLIENT = TelegramClient(conf.APP_NAME, api_id=conf.API_ID, api_hash=conf.API_HASH)
-logging.basicConfig(level=logging.ERROR)
-_LOGGER = logging.getLogger(conf.APP_NAME)
-
-
 # ADMIN
 @_DP.message_handler(commands=['a'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        if message.from_user.id == conf.ADMIN_ID:
+        if message.from_user.id == ADMIN_ID:
             keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
             buttons = ["/post", "/statistics"]
             keyboard.add(*buttons)
@@ -52,7 +68,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['post'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        if message.from_user.id == conf.ADMIN_ID:
+        if message.from_user.id == ADMIN_ID:
             await message.answer("Внимаю создатель🤩")
             await message.answer("Какой пост хотите опубликовать для всех пользователей?")
             await AdminStates.enter_post.set()
@@ -76,7 +92,7 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(commands=['statistics'], state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        if message.from_user.id == conf.ADMIN_ID:
+        if message.from_user.id == ADMIN_ID:
             all_users_len = len(await store.get_all_users())
             all_listen_users = len(await store.get_all_listen_users())
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
@@ -122,7 +138,7 @@ async def _enter_tape_channel(message: bot_types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['tape_channel'] = list(exist_channels.keys())[0]
 
-    if (await state.get_data())['listen_channels'] is not None:
+    if (await state.get_data()).get('listen_channels') is not None:
         for text in bot_messages_ru['enter_new_tape'][2]:
             await message.answer(text)
         await state.reset_state(with_data=False)
@@ -219,11 +235,16 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
 
             if exist_channels:
-                table_text_arr = list(bot_messages_ru['subscriptions'][0]) + list(
-                    map(lambda nickname: f"-> {nickname.replace('@', '/')}"
-                    if state_name == delete_state_name else f"-> {nickname}", list(exist_channels.values())))
 
-                await message.answer('\n'.join(table_text_arr))
+                table_text = f"{bot_messages_ru['subscriptions'][0][0]}\n"
+
+                for nickname in list(exist_channels.values()):
+                    if state_name == delete_state_name:
+                        table_text += f"-> {nickname.replace('@', '/')}\n"
+                    else:
+                        table_text += f"-> {nickname}\n"
+
+                await message.answer(table_text)
             else:
                 await message.answer(bot_messages_ru['subscriptions'][1])
 
@@ -421,7 +442,7 @@ async def _check_channels_exist(channel_entities):
 
 async def _check_bot_is_channel_admin(channel_id):
     try:
-        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), conf.API_BOT_TOKEN.split(":")[0])
+        member = await _BOT.get_chat_member(-(10 ** 12 + channel_id), API_BOT_TOKEN.split(":")[0])
         if member.status == 'administrator':
             return True
         else:
@@ -457,9 +478,9 @@ async def _delete_channels_to_client(channel_ids):
 # NOTIFICATION
 async def _send_message_channel_subscribers(post_text, channel_ids):
     client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
+    db = client[APP_NAME]
     users_coll = db["aiogram_data"]
-    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+    channels_coll = db[LISTEN_CHANNELS_COLL_NAME]
 
     async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
         async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
@@ -471,7 +492,7 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
 
 async def _notify_users_about_engineering_works(is_start):
     client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
+    db = client[APP_NAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
@@ -483,7 +504,7 @@ async def _notify_users_about_engineering_works(is_start):
 
 async def _send_message_all_users(post_text):
     client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
+    db = client[APP_NAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
@@ -513,17 +534,17 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
     listen_channel_id = abs(10 ** 12 + event.chat_id)
 
     client = await store.STORAGE.get_client()
-    db = client[conf.APP_NAME]
+    db = client[APP_NAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
                                                {"data.is_listen": True}]}):
         try:
-            await _CLIENT.forward_messages(entity=conf.MAIN_TAPE_CHANNEL_NAME, messages=event.message)
-            async for message in _CLIENT.iter_messages(conf.MAIN_TAPE_CHANNEL_NAME, limit=500):
+            await _CLIENT.forward_messages(entity=MAIN_TAPE_CHANNEL_NAME, messages=event.message)
+            async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_NAME, limit=500):
                 if message.forward.chat_id == event.chat_id:
                     await _BOT.forward_message(chat_id=-(10 ** 12 + obj['data']['tape_channel']),
-                                               from_chat_id=conf.MAIN_TAPE_CHANNEL_ID,
+                                               from_chat_id=MAIN_TAPE_CHANNEL_ID,
                                                message_id=message.id)
                     break
         except AuthKeyError:
@@ -551,7 +572,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
 
 def run():
-    _CLIENT.start(phone=conf.PHONE)
+    _CLIENT.start(phone=PHONE)
     _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
     _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
