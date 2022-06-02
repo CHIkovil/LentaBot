@@ -5,11 +5,6 @@ from Support import store
 from Support.messages import bot_messages_ru
 
 
-class StartQuestionStates(StatesGroup):
-    enter_tape_channel = State()
-    enter_initial_listen_channels = State()
-
-
 API_ID = int(os.environ.get('API_ID'))
 API_HASH = os.environ.get('API_HASH')
 API_BOT_TOKEN = os.environ.get('API_BOT_TOKEN')
@@ -34,6 +29,11 @@ logging.basicConfig(level=logging.ERROR)
 _LOGGER = logging.getLogger(APP_NAME)
 
 
+class StartQuestionStates(StatesGroup):
+    enter_tape_channel = State()
+    enter_initial_listen_channels = State()
+
+
 class UpdateStates(StatesGroup):
     enter_add_listen_channels = State()
     enter_delete_listen_channel = State()
@@ -48,6 +48,8 @@ class AdminStates(StatesGroup):
     enter_post = State()
 
 
+DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
+                                                                                                                '', 1)
 # ADMIN
 @_DP.message_handler(commands=['a'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
@@ -225,9 +227,8 @@ async def _on_help(message: bot_types.Message, state:FSMContext):
 @_DP.message_handler(commands=['subscriptions'], state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
-    delete_state_name = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
-                                                                                                                '', 1)
-    if not state_name or state_name == delete_state_name:
+
+    if not state_name or state_name == DELETE_STATE_NAME:
         listen_channel_ids = (await state.get_data())['listen_channels']
 
         if listen_channel_ids:
@@ -239,7 +240,7 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                 table_text = f"{bot_messages_ru['subscriptions'][0][0]}\n"
 
                 for nickname in list(exist_channels.values()):
-                    if state_name == delete_state_name:
+                    if state_name == DELETE_STATE_NAME:
                         table_text += f"-> {nickname.replace('@', '/')}\n"
                     else:
                         table_text += f"-> {nickname}\n"
