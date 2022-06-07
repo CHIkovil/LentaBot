@@ -57,9 +57,23 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
             keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-            buttons = ["/post", "/statistics"]
+            buttons = ["/post", "/statistics", "/stop_bot"]
             keyboard.add(*buttons)
             await message.answer("Чего желаете создатель?😁", reply_markup=keyboard)
+        else:
+            for text in bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(commands=['stop_bot'], state='*')
+async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer("Увидимся создатель🖐️", reply_markup=bot_types.ReplyKeyboardRemove())
+            await stop()
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
@@ -581,9 +595,12 @@ def run():
     executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
 
 
+async def stop():
+    await _CLIENT.disconnect()
+    sys.exit(0)
+
+
 if __name__ == '__main__':
     run()
     _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
-    _DP.storage.close()
-    _DP.storage.wait_closed()
-    _CLIENT.disconnect()
+    _CLIENT.loop.run_until_complete(stop())
