@@ -4,15 +4,12 @@ from Support import *
 from Support import store
 from Support.messages import bot_messages_ru
 
-
 API_ID = int(os.environ.get('API_ID'))
 API_HASH = os.environ.get('API_HASH')
 API_BOT_TOKEN = os.environ.get('API_BOT_TOKEN')
 
 PHONE = os.environ.get('PHONE')
 ADMIN_ID = int(os.environ.get('ADMIN_ID'))
-
-MONGO_URL = os.environ.get('MONGO_URL')
 APP_NAME = os.environ.get('APP_NAME')
 
 WISH_COLL_NAME = os.environ.get('WISH_COLL_NAME')
@@ -21,6 +18,7 @@ LISTEN_CHANNELS_COLL_NAME = os.environ.get('LISTEN_CHANNELS_COLL_NAME')
 MAIN_TAPE_CHANNEL_NAME = os.environ.get('MAIN_TAPE_CHANNEL_NAME')
 MAIN_TAPE_CHANNEL_ID = int(os.environ.get('MAIN_TAPE_CHANNEL_ID'))
 
+MONGO_DBNAME = os.environ.get('MONGO_DBNAME')
 
 _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
@@ -49,7 +47,10 @@ class AdminStates(StatesGroup):
 
 
 DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
-                                                                                                                '', 1)
+
+                                                                                                            '', 1)
+
+
 # ADMIN
 @_DP.message_handler(commands=['a'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
@@ -216,7 +217,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
 
 
 @_DP.message_handler(commands=['help'], state='*')
-async def _on_help(message: bot_types.Message, state:FSMContext):
+async def _on_help(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['help'])
     else:
@@ -330,9 +331,11 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
     if text[0] == '/' and text != '/subscriptions':
         text = '@' + text[1:]
-    else:
+    elif text == '/subscriptions':
         await _get_subscriptions_table(message=message, state=state)
         return
+    else:
+        pass
 
     exist_channels, not_exist_channel_entities = await _check_channels_exist([text])
 
@@ -345,7 +348,6 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     async with state.proxy() as data:
         if del_channel_id in set(data['listen_channels']):
             data['listen_channels'].remove(del_channel_id)
-
         else:
             for text in bot_messages_ru['enter_delete_listen'][1]:
                 await message.answer(text)
@@ -356,7 +358,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     await _get_subscriptions_table(message=message, state=state)
 
     empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                  user_id=message.from_user.id)
+                                                                                      user_id=message.from_user.id)
     if empty_users_channel_ids:
         await _delete_channels_to_client(empty_users_channel_ids)
 
@@ -479,7 +481,7 @@ async def _delete_channels_to_client(channel_ids):
 # NOTIFICATION
 async def _send_message_channel_subscribers(post_text, channel_ids):
     client = await store.STORAGE.get_client()
-    db = client[APP_NAME]
+    db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
     channels_coll = db[LISTEN_CHANNELS_COLL_NAME]
 
@@ -493,7 +495,7 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
 
 async def _notify_users_about_engineering_works(is_start):
     client = await store.STORAGE.get_client()
-    db = client[APP_NAME]
+    db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
@@ -505,7 +507,7 @@ async def _notify_users_about_engineering_works(is_start):
 
 async def _send_message_all_users(post_text):
     client = await store.STORAGE.get_client()
-    db = client[APP_NAME]
+    db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
@@ -535,7 +537,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
     listen_channel_id = abs(10 ** 12 + event.chat_id)
 
     client = await store.STORAGE.get_client()
-    db = client[APP_NAME]
+    db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
@@ -582,4 +584,6 @@ def run():
 if __name__ == '__main__':
     run()
     _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
+    _DP.storage.close()
+    _DP.storage.wait_closed()
     _CLIENT.disconnect()
