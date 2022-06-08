@@ -37,7 +37,7 @@ DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen
 
 
 # ADMIN
-@_DP.message_handler(commands=['a'], state='*')
+@_DP.message_handler(commands=['admin'], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -57,7 +57,8 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer("Увидимся создатель🖐️", reply_markup=bot_types.ReplyKeyboardRemove())
+            await message.answer("Увидимся создатель🖐️")
+            await message.answer("Отключаюсь😴", reply_markup=bot_types.ReplyKeyboardRemove())
             await stop()
         else:
             for text in bot_messages_ru['echo']:
@@ -85,9 +86,9 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     await message.answer("Опубликовал💌", reply_markup=bot_types.ReplyKeyboardRemove())
-    await _send_message_all_users("❗❗❗ "
-                                  "От создателя😎: "
-                                  "❗❗❗\n\n" + message.text)
+    await _send_message_all_users("❗❗❗"
+                                  "От создателя😎:\n\n"
+                                  + message.text)
     await state.reset_state(with_data=False)
 
 
@@ -99,9 +100,9 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_listen_users = len(await store.get_all_listen_users())
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
 
-            await message.answer("Общая статистика📋:\n" + '▶▶▶\n' + f'Всего пользователей🧘‍: ↔ {all_users_len}\n'
-                                                                     f'Всего лент запущено👂: ↔ {all_listen_users}\n'
-                                                                     f'Всего каналов 🌍: ↔ {all_listen_channels_len}\n',
+            await message.answer("Общая статистика📋:\n\n" + f'Пользователей 🙆‍‍‍ - {all_users_len}\n'
+                                                           f'Лент запущено👂 - {all_listen_users}\n'
+                                                           f'Каналов 🌍 -  {all_listen_channels_len}\n',
                                  reply_markup=bot_types.ReplyKeyboardRemove())
         else:
             for text in bot_messages_ru['echo']:
@@ -360,8 +361,6 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         await _get_subscriptions_table(message=message, state=state)
         _ = await store.delete_listen_channels_to_common_collection([del_channel_id],
                                                                     user_id=message.from_user.id)
-
-
 
 
 @_DP.message_handler(commands=['change_feed_channel'], state='*')
