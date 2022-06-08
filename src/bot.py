@@ -87,7 +87,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     await message.answer("Опубликовал💌", reply_markup=bot_types.ReplyKeyboardRemove())
     await _send_message_all_users("❗❗❗"
-                                  "От создателя😎:\n\n"
+                                  "(От создателя😎)\n\n"
                                   + message.text)
     await state.reset_state(with_data=False)
 
@@ -100,9 +100,9 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_listen_users = len(await store.get_all_listen_users())
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
 
-            await message.answer("Общая статистика📋:\n\n" + f'Пользователей 🙆‍‍‍ - {all_users_len}\n'
-                                                           f'Лент запущено👂 - {all_listen_users}\n'
-                                                           f'Каналов 🌍 -  {all_listen_channels_len}\n',
+            await message.answer("Общая статистика📋:\n\n" + f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
+                                                           f'♦️ Лент запущено👂 - {all_listen_users}\n'
+                                                           f'♦️ Каналов 🌍 -  {all_listen_channels_len}\n',
                                  reply_markup=bot_types.ReplyKeyboardRemove())
         else:
             for text in bot_messages_ru['echo']:
@@ -242,9 +242,9 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                 for nickname in list(exist_channels.values()):
                     entity = await _CLIENT.get_entity(nickname)
                     if state_name == DELETE_STATE_NAME:
-                        table_text += f"-> {nickname.replace('@', '/')} - {entity.title}\n"
+                        table_text += f"🔸 {nickname.replace('@', '/')} - {entity.title}\n"
                     else:
-                        table_text += f"-> {nickname} - {entity.title}\n"
+                        table_text += f"🔸 {nickname} - {entity.title}\n"
 
                 await message.answer(table_text)
             else:
