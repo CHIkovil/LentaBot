@@ -3,22 +3,7 @@ import logging
 from Support import *
 from Support import store
 from Support.messages import bot_messages_ru
-
-API_ID = int(os.environ.get('API_ID'))
-API_HASH = os.environ.get('API_HASH')
-API_BOT_TOKEN = os.environ.get('API_BOT_TOKEN')
-
-PHONE = os.environ.get('PHONE')
-ADMIN_ID = int(os.environ.get('ADMIN_ID'))
-APP_NAME = os.environ.get('APP_NAME')
-
-WISH_COLL_NAME = os.environ.get('WISH_COLL_NAME')
-LISTEN_CHANNELS_COLL_NAME = os.environ.get('LISTEN_CHANNELS_COLL_NAME')
-
-MAIN_TAPE_CHANNEL_NAME = os.environ.get('MAIN_TAPE_CHANNEL_NAME')
-MAIN_TAPE_CHANNEL_ID = int(os.environ.get('MAIN_TAPE_CHANNEL_ID'))
-
-MONGO_DBNAME = os.environ.get('MONGO_DBNAME')
+from Support.conf import *
 
 _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
@@ -188,7 +173,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 
     async with state.proxy() as data:
         data['listen_channels'] = list(exist_channels.keys())
-        data['is_listen'] = False
+        data['is_listen'] = True
 
     await _join_new_listen_channels_to_client(list(exist_channels.keys()))
     await store.save_new_listen_channels_to_common_collection(exist_channels, user_id=message.from_user.id)
@@ -590,7 +575,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
 
 def run():
     _CLIENT.start(phone=PHONE)
-    _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
+    # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
     _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
 
@@ -602,5 +587,5 @@ async def stop():
 
 if __name__ == '__main__':
     run()
-    _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
+    # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
     _CLIENT.loop.run_until_complete(stop())
