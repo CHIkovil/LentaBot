@@ -273,8 +273,8 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
-    if message.text == '/everything':
-        for text in bot_messages_ru['everything']:
+    if message.text == '/end':
+        for text in bot_messages_ru['end']:
             await message.answer(text)
         await _reload_listener()
         await state.reset_state(with_data=False)
@@ -321,8 +321,8 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
 async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
     text = message.text
 
-    if text == '/everything':
-        for text in bot_messages_ru['everything']:
+    if text == '/end':
+        for text in bot_messages_ru['end']:
             await message.answer(text)
         await state.reset_state(with_data=False)
         return
