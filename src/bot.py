@@ -252,7 +252,6 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             if not_exist_channel_ids:
                 await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
                 await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
-                await _delete_channels_to_client(not_exist_channel_ids)
         else:
             for text in bot_messages_ru['subscriptions'][2]:
                 await message.answer(text)
@@ -356,10 +355,8 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         await message.answer(text)
     await _get_subscriptions_table(message=message, state=state)
 
-    empty_users_channel_ids = await store.delete_listen_channels_to_common_collection([del_channel_id],
-                                                                                      user_id=message.from_user.id)
-    if empty_users_channel_ids:
-        await _delete_channels_to_client(empty_users_channel_ids)
+    _ = await store.delete_listen_channels_to_common_collection([del_channel_id],
+                                                                user_id=message.from_user.id)
 
 
 @_DP.message_handler(commands=['change_feed_channel'], state='*')
@@ -470,13 +467,6 @@ async def _join_new_listen_channels_to_client(channel_ids):
             await _CLIENT.edit_folder(id, folder=1)
 
 
-async def _delete_channels_to_client(channel_ids):
-    channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
-    for id in channel_ids:
-        if id in channel_dialog_ids:
-            await _CLIENT.delete_dialog(id)
-
-
 # NOTIFICATION
 async def _send_message_channel_subscribers(post_text, channel_ids):
     client = await store.STORAGE.get_client()
@@ -553,7 +543,6 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
             try:
                 await _send_message_channel_subscribers(bot_messages_ru['channel_on_protection'], [listen_channel_id])
                 await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
-                await _delete_channels_to_client([listen_channel_id])
                 await _reload_listener()
             except Unauthorized:
                 await store.stop_listen_for_user(obj['user'])
