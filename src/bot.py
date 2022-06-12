@@ -259,17 +259,21 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
 
     if not state_name or state_name == DELETE_STATE_NAME or state_name == ADD_STATE_NAME:
         listen_channel_ids = (await state.get_data())['listen_channels']
-        listen_channel = await store.get_listen_channel(listen_channel_ids)
+        exist_channel, not_exist_channel_ids = await _get_exist_channel_with_titles_to_client(listen_channel_ids)
 
-        if listen_channel:
+        if exist_channel:
             table_text = f"{bot_messages_ru['subscriptions'][0][0]}\n"
 
-            for nickname in list(listen_channel.values()):
+            for username, title in list(exist_channel.values()):
                 if state_name == DELETE_STATE_NAME:
-                    table_text += f"🔸 {nickname.replace('@', '/')}\n"
+                    table_text += f"🔸 /{username} - {title}\n"
                 else:
-                    table_text += f"🔸 {nickname}\n"
+                    table_text += f"🔸 @{username} - {title}\n"
             await message.answer(table_text)
+
+            if not_exist_channel_ids:
+                await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
+                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
         else:
             await message.answer(bot_messages_ru['subscriptions'][1])
     else:
@@ -519,6 +523,15 @@ async def _join_new_listen_channels_to_client(channel_ids):
                                                           mute_until=2 ** 31 - 1
                                                       )))
             await _CLIENT.edit_folder(id, folder=1)
+
+
+async def _get_exist_channel_with_titles_to_client(channel_ids):
+    channel_ids_set = set(channel_ids)
+    exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set}
+
+    not_exist_channel_ids = list(channel_ids_set - set(exist_channel.keys()))
+
+    return exist_channel, not_exist_channel_ids
 
 
 # NOTIFICATION
