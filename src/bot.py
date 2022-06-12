@@ -13,7 +13,6 @@ _LOGGER = logging.getLogger(APP_NAME)
 
 
 class StartQuestionStates(StatesGroup):
-    enter_tape_channel = State()
     enter_initial_listen_channels = State()
 
 
@@ -39,7 +38,7 @@ ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_chann
                                                                                                        '', 1)
 
 ALL_COMMANDS = {'/admin': 'admin',
-                '/stop_bot': 'stop_bot',
+                '/stop': 'stop',
                 '/post': 'post',
                 '/statistics': 'statistics',
                 '/start': 'start',
@@ -49,7 +48,6 @@ ALL_COMMANDS = {'/admin': 'admin',
                 '/subscriptions': 'subscriptions',
                 '/add': 'add',
                 '/delete': 'delete',
-                '/change_feed_channel': 'change_feed_channel',
                 '/wish': 'wish'
                 }
 
@@ -60,7 +58,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
             keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-            buttons = ["/post", "/statistics", "/stop_bot"]
+            buttons = ["/post", "/statistics", "/stop"]
             keyboard.add(*buttons)
             await message.answer("Чего желаете создатель?😁", reply_markup=keyboard)
         else:
@@ -71,7 +69,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/stop_bot']], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/stop']], state='*')
 async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -105,7 +103,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     await message.answer("Опубликовал💌", reply_markup=bot_types.ReplyKeyboardRemove())
     await _send_message_all_users("❗❗❗"
-                                  "(От создателя😎)\n\n"
+                                  "(От создателя😎)❗❗❗\n\n"
                                   + message.text)
     await state.reset_state(with_data=False)
 
@@ -136,43 +134,10 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         for text in bot_messages_ru['start'][0]:
             await message.answer(text)
-        await StartQuestionStates.enter_tape_channel.set()
+        await StartQuestionStates.enter_initial_listen_channels.set()
     else:
         for text in bot_messages_ru['start'][1]:
             await message.answer(text)
-
-
-@_DP.message_handler(state=StartQuestionStates.enter_tape_channel)
-async def _enter_tape_channel(message: bot_types.Message, state: FSMContext):
-    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([message.text])
-
-    if not exist_channels and not not_exist_channel_entities:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-        return
-
-    if not_exist_channel_entities:
-        for text in bot_messages_ru['enter_new_tape'][0]:
-            await message.answer(text)
-        return
-
-    if not await _check_bot_is_channel_admin(list(exist_channels.keys())[0]):
-        for text in bot_messages_ru['enter_new_tape'][1]:
-            await message.answer(text)
-        return
-
-    async with state.proxy() as data:
-        data['tape_channel'] = list(exist_channels.keys())[0]
-
-    if (await state.get_data()).get('listen_channels') is not None:
-        for text in bot_messages_ru['enter_new_tape'][2]:
-            await message.answer(text)
-        await state.reset_state(with_data=False)
-        return
-
-    for text in bot_messages_ru['enter_new_tape'][3]:
-        await message.answer(text)
-    await StartQuestionStates.enter_initial_listen_channels.set()
 
 
 @_DP.message_handler(state=StartQuestionStates.enter_initial_listen_channels)
@@ -217,14 +182,11 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
         for text in bot_messages_ru['start_tape'][0]:
             await message.answer(text)
     else:
-        if data.get('tape_channel') is None:
+        if not data['listen_channels']:
             for text in bot_messages_ru['start_tape'][1]:
                 await message.answer(text)
-        elif not data['listen_channels']:
-            for text in bot_messages_ru['start_tape'][2]:
-                await message.answer(text)
         else:
-            for text in bot_messages_ru['start_tape'][3]:
+            for text in bot_messages_ru['start_tape'][2]:
                 await message.answer(text)
 
             async with state.proxy() as data:
@@ -394,18 +356,6 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
                                                                     user_id=message.from_user.id)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/change_feed_channel']], state='*')
-async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
-    if not (await state.get_state()):
-        await store.drop_tape_channel_for_user(message.from_user.id)
-        for text in bot_messages_ru['change_tape']:
-            await message.answer(text)
-        await StartQuestionStates.enter_tape_channel.set()
-    else:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-
-
 @_DP.message_handler(commands=[ALL_COMMANDS['/wish']], state='*')
 async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
@@ -527,7 +477,8 @@ async def _join_new_listen_channels_to_client(channel_ids):
 
 async def _get_exist_channel_with_titles_to_client(channel_ids):
     channel_ids_set = set(channel_ids)
-    exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set}
+    exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in
+                     _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set}
 
     not_exist_channel_ids = list(channel_ids_set - set(exist_channel.keys()))
 
@@ -602,7 +553,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
             await _CLIENT.forward_messages(entity=MAIN_TAPE_CHANNEL_NAME, messages=event.message)
             async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_NAME, limit=500):
                 if message.forward.chat_id == event.chat_id:
-                    await _BOT.forward_message(chat_id=-(10 ** 12 + obj['data']['tape_channel']),
+                    await _BOT.forward_message(chat_id=obj['user'],
                                                from_chat_id=MAIN_TAPE_CHANNEL_ID,
                                                message_id=message.id)
                     break
@@ -616,15 +567,7 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
             except Exception as err:
                 _LOGGER.error(err)
         except Unauthorized:
-            try:
-                for text in bot_messages_ru['tape_not_exist']:
-                    await _BOT.send_message(chat_id=obj['user'],
-                                            text=text)
-                await store.drop_tape_channel_for_user(obj['user'])
-            except Unauthorized:
-                await store.stop_listen_for_user(obj['user'])
-            except Exception as err:
-                _LOGGER.error(err)
+            await store.stop_listen_for_user(obj['user'])
         except Exception as err:
             _LOGGER.error(err)
 
@@ -641,6 +584,7 @@ async def _on_telegram_url(username):
 def run():
     _CLIENT.start(phone=PHONE)
     # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
+    _CLIENT.loop.run_until_complete(store.delete_all_tape_channel_to_store())
     _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
 

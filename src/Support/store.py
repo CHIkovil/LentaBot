@@ -4,12 +4,12 @@ from . import conf
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 
 
-async def get_listen_channel(channel_ids):
+async def delete_all_tape_channel_to_store():
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+    users_coll = db["aiogram_data"]
 
-    return {obj["id"]: obj['nickname'] async for obj in channels_coll.find({"id": {"$in": channel_ids}})}
+    users_coll.update_many({}, {'$unset': {'data.tape_channel': ""}})
 
 
 async def get_all_listen_users():
@@ -86,15 +86,6 @@ async def stop_listen_for_user(user_id):
     users_coll = db["aiogram_data"]
 
     await users_coll.update_one({"user": user_id}, {"$set": {"data.is_listen": False}})
-
-
-async def drop_tape_channel_for_user(user_id):
-    client = await STORAGE.get_client()
-    db = client[conf.MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
-
-    await stop_listen_for_user(user_id=user_id)
-    await users_coll.update_one({"user": user_id}, {"$set": {"data.tape_channel": None}})
 
 
 async def get_user_wish(user_id, db_name=conf.MONGO_DBNAME):
