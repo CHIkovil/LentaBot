@@ -4,6 +4,14 @@ from . import conf
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 
 
+async def get_listen_channel(channel_ids):
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    return {obj["id"]: obj['nickname'] async for obj in channels_coll.find({"id": {"$in": channel_ids}})}
+
+
 async def get_all_listen_users():
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
@@ -26,22 +34,6 @@ async def get_all_listen_channel_ids():
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
     return [obj['id'] async for obj in channels_coll.find({})]
-
-
-async def check_channel_nicknames_actuality_to_common_collection(exist_channels):
-    client = await STORAGE.get_client()
-    db = client[conf.MONGO_DBNAME]
-    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
-
-    exist_listen_channel = {obj['nickname']: obj['id'] async for obj in
-                            channels_coll.find({"id": {"$in": list(exist_channels.keys())}})}
-
-    not_equal_old_nicknames = list(set(exist_listen_channel.keys()) - set(exist_channels.values()))
-
-    if not_equal_old_nicknames:
-        for old_nickname in not_equal_old_nicknames:
-            await channels_coll.update_one({'id': exist_listen_channel[old_nickname]},
-                                           {"$set": {'nickname': exist_channels[exist_listen_channel[old_nickname]]}})
 
 
 async def save_new_listen_channels_to_common_collection(channels, user_id, db_name=conf.MONGO_DBNAME):

@@ -34,10 +34,28 @@ class AdminStates(StatesGroup):
 DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
 
                                                                                                             '', 1)
+ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_channels.__str__()).replace('State',
+
+                                                                                                       '', 1)
+
+ALL_COMMANDS = {'/admin': 'admin',
+                '/stop_bot': 'stop_bot',
+                '/post': 'post',
+                '/statistics': 'statistics',
+                '/start': 'start',
+                '/on': 'on',
+                '/off': 'off',
+                '/help': 'help',
+                '/subscriptions': 'subscriptions',
+                '/add': 'add',
+                '/delete': 'delete',
+                '/change_feed_channel': 'change_feed_channel',
+                '/wish': 'wish'
+                }
 
 
 # ADMIN
-@_DP.message_handler(commands=['admin'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/admin']], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -53,7 +71,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['stop_bot'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/stop_bot']], state='*')
 async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -68,7 +86,7 @@ async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['post'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/post']], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -92,7 +110,7 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(commands=['statistics'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/statistics']], state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -101,8 +119,8 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
 
             await message.answer("Общая статистика📋:\n\n" + f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
-                                                           f'♦️ Лент запущено👂 - {all_listen_users}\n'
-                                                           f'♦️ Каналов 🌍 -  {all_listen_channels_len}\n',
+                                                             f'♦️ Лент запущено👂 - {all_listen_users}\n'
+                                                             f'♦️ Каналов 🌍 -  {all_listen_channels_len}\n',
                                  reply_markup=bot_types.ReplyKeyboardRemove())
         else:
             for text in bot_messages_ru['echo']:
@@ -113,7 +131,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 
 
 # COMMANDS
-@_DP.message_handler(commands=['start'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/start']], state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         for text in bot_messages_ru['start'][0]:
@@ -126,7 +144,12 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=StartQuestionStates.enter_tape_channel)
 async def _enter_tape_channel(message: bot_types.Message, state: FSMContext):
-    exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
+    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([message.text])
+
+    if not exist_channels and not not_exist_channel_entities:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+        return
 
     if not_exist_channel_entities:
         for text in bot_messages_ru['enter_new_tape'][0]:
@@ -155,7 +178,12 @@ async def _enter_tape_channel(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=StartQuestionStates.enter_initial_listen_channels)
 async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMContext):
     channels = list(set(message.text.split(',')))
-    exist_channels, not_exist_channel_entities = await _check_channels_exist(channels)
+    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist(channels)
+
+    if not exist_channels and not not_exist_channel_entities:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+        return
 
     if not_exist_channel_entities:
         for text in bot_messages_ru['enter_init_listen'][0]:
@@ -182,7 +210,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(commands=['on'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/on']], state='*')
 async def _start_tape(message: bot_types.Message, state: FSMContext):
     data = await state.get_data()
     if data['is_listen']:
@@ -203,7 +231,7 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
                 data['is_listen'] = True
 
 
-@_DP.message_handler(commands=['off'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/off']], state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['is_listen']:
         for text in bot_messages_ru['stop_tape'][0]:
@@ -216,7 +244,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['help'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/help']], state='*')
 async def _on_help(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['help'])
@@ -225,34 +253,23 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['subscriptions'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/subscriptions']], state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
-    if not state_name or state_name == DELETE_STATE_NAME:
+    if not state_name or state_name == DELETE_STATE_NAME or state_name == ADD_STATE_NAME:
         listen_channel_ids = (await state.get_data())['listen_channels']
+        listen_channel = await store.get_listen_channel(listen_channel_ids)
 
-        if listen_channel_ids:
-            exist_channels, not_exist_channel_ids = await _check_channels_exist(listen_channel_ids)
-            await store.check_channel_nicknames_actuality_to_common_collection(exist_channels)
+        if listen_channel:
+            table_text = f"{bot_messages_ru['subscriptions'][0][0]}\n"
 
-            if exist_channels:
-                table_text = f"{bot_messages_ru['subscriptions'][0][0]}\n"
-
-                for nickname in list(exist_channels.values()):
-                    entity = await _CLIENT.get_entity(nickname)
-                    if state_name == DELETE_STATE_NAME:
-                        table_text += f"🔸 {nickname.replace('@', '/')} - {entity.title}\n"
-                    else:
-                        table_text += f"🔸 {nickname} - {entity.title}\n"
-
-                await message.answer(table_text)
-            else:
-                await message.answer(bot_messages_ru['subscriptions'][1])
-
-            if not_exist_channel_ids:
-                await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
-                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
+            for nickname in list(listen_channel.values()):
+                if state_name == DELETE_STATE_NAME:
+                    table_text += f"🔸 {nickname.replace('@', '/')}\n"
+                else:
+                    table_text += f"🔸 {nickname}\n"
+            await message.answer(table_text)
         else:
             await message.answer(bot_messages_ru['subscriptions'][1])
     else:
@@ -260,7 +277,7 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['add'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/add']], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         for text in bot_messages_ru['add_listen']:
@@ -280,7 +297,12 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
         await state.reset_state(with_data=False)
         return
 
-    exist_channels, not_exist_channel_entities = await _check_channels_exist([message.text])
+    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([message.text])
+
+    if not exist_channels and not not_exist_channel_entities:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+        return
 
     if not_exist_channel_entities:
         for text in bot_messages_ru['enter_add_listen'][0]:
@@ -302,7 +324,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
 
-@_DP.message_handler(commands=['delete'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/delete']], state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
@@ -341,7 +363,12 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     else:
         pass
 
-    exist_channels, not_exist_channel_entities = await _check_channels_exist([text])
+    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([text])
+
+    if not exist_channels and not not_exist_channel_entities:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+        return
 
     if not_exist_channel_entities:
         for text in bot_messages_ru['enter_delete_listen'][1]:
@@ -363,7 +390,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
                                                                     user_id=message.from_user.id)
 
 
-@_DP.message_handler(commands=['change_feed_channel'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/change_feed_channel']], state='*')
 async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await store.drop_tape_channel_for_user(message.from_user.id)
@@ -375,7 +402,7 @@ async def _change_tape_channel(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=['wish'], state='*')
+@_DP.message_handler(commands=[ALL_COMMANDS['/wish']], state='*')
 async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
@@ -425,22 +452,45 @@ async def _echo(message: bot_types.Message):
 
 
 # CHECK
-async def _check_channels_exist(channel_entities):
+async def _check_channel_urls_exist(urls):
+    valid_urls = list(set(urls) - set(ALL_COMMANDS.keys()))
+    if not valid_urls:
+        return {}, []
+
     exist_channels = {}
-    not_exist_channel_entities = []
-    for entity in channel_entities:
+    not_exist_channel_urls = []
+
+    exist_channel_to_client, not_exist_channel_urls_to_client = await _check_channel_exist_to_client(valid_urls)
+    exist_channels.update(exist_channel_to_client)
+
+    for url in not_exist_channel_urls_to_client:
         try:
-            obj = await _CLIENT.get_entity(entity)
+            obj = await _CLIENT.get_entity(url)
             if isinstance(obj, client_types.Channel):
                 exist_channels[obj.id] = f"@{obj.username}"
             else:
-                not_exist_channel_entities.append(entity)
+                not_exist_channel_urls.append(url)
         except ValueError:
-            not_exist_channel_entities.append(entity)
+            not_exist_channel_urls.append(url)
         except Exception as err:
-            not_exist_channel_entities.append(entity)
+            not_exist_channel_urls.append(url)
             _LOGGER.error(err)
-    return exist_channels, not_exist_channel_entities
+    return exist_channels, not_exist_channel_urls
+
+
+async def _check_channel_exist_to_client(urls):
+    exist_channel = {}
+    not_exist_channel_urls = []
+
+    usernames = {await _on_telegram_username(url) for url in urls}
+    all_dialogs = {dialog.entity.username: dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True)}
+
+    for username in usernames:
+        if all_dialogs.get(username):
+            exist_channel[all_dialogs[username]] = f"@{username}"
+        else:
+            not_exist_channel_urls.append(await _on_telegram_url(username))
+    return exist_channel, not_exist_channel_urls
 
 
 async def _check_bot_is_channel_admin(channel_id):
@@ -564,6 +614,15 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
                 _LOGGER.error(err)
         except Exception as err:
             _LOGGER.error(err)
+
+
+async def _on_telegram_username(url):
+    tg_str = r'(@)?(https://)?(t.me/)?(\s+)?'
+    return re.sub(tg_str, '', url)
+
+
+async def _on_telegram_url(username):
+    return f'https://t.me/{username}'
 
 
 def run():
