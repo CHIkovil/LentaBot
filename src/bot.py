@@ -37,59 +37,33 @@ ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_chann
 
                                                                                                        '', 1)
 
-ALL_COMMANDS = {'/admin': 'admin',
-                '/stop': 'stop',
-                '/post': 'post',
-                '/statistics': 'statistics',
-                '/start': 'start',
-                '/on': 'on',
-                '/off': 'off',
-                '/help': 'help',
-                '/subscriptions': 'subscriptions',
-                '/add': 'add',
-                '/delete': 'delete',
-                '/wish': 'wish'
-                }
+ADMIN_COMMANDS = {'/post': 'post',
+                  '/statistics': 'statistics'
+                  }
+
+MAIN_COMMANDS = {'/start': 'start',
+                 '/menu': 'menu',
+                 '/help': 'help',
+                 }
+
+MENU_COMMANDS = {'/on': 'on',
+                 '/off': 'off',
+                 '/subscriptions': 'subscriptions',
+                 '/add': 'add',
+                 '/delete': 'delete',
+                 '/wish': 'wish'
+                 }
+
+SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/menu', '/help'])
 
 
 # ADMIN
-@_DP.message_handler(commands=[ALL_COMMANDS['/admin']], state='*')
-async def _on_post(message: bot_types.Message, state: FSMContext):
-    if not (await state.get_state()):
-        if message.from_user.id == ADMIN_ID:
-            keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-            buttons = ["/post", "/statistics", "/stop"]
-            keyboard.add(*buttons)
-            await message.answer("Чего желаете создатель?😁", reply_markup=keyboard)
-        else:
-            for text in bot_messages_ru['echo']:
-                await message.answer(text)
-    else:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-
-
-@_DP.message_handler(commands=[ALL_COMMANDS['/stop']], state='*')
-async def _on_bot_stop(message: bot_types.Message, state: FSMContext):
-    if not (await state.get_state()):
-        if message.from_user.id == ADMIN_ID:
-            await message.answer("Увидимся создатель🖐️")
-            await message.answer("Отключаюсь😴", reply_markup=bot_types.ReplyKeyboardRemove())
-            await stop()
-        else:
-            for text in bot_messages_ru['echo']:
-                await message.answer(text)
-    else:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-
-
-@_DP.message_handler(commands=[ALL_COMMANDS['/post']], state='*')
+@_DP.message_handler(commands=[ADMIN_COMMANDS['/post']], state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
             await message.answer("Внимаю создатель🤩")
-            await message.answer("Какой пост хотите опубликовать для всех пользователей?")
+            await message.answer("Какой пост хотите опубликовать для всех пользователей?", reply_markup=SUPPORT_KEYBOARD)
             await AdminStates.enter_post.set()
         else:
             for text in bot_messages_ru['echo']:
@@ -101,14 +75,18 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
-    await message.answer("Опубликовал💌", reply_markup=bot_types.ReplyKeyboardRemove())
-    await _send_message_all_users("❗❗❗"
-                                  "(От создателя😎)❗❗❗\n\n"
-                                  + message.text)
-    await state.reset_state(with_data=False)
+    if not message.text in (list(ADMIN_COMMANDS.keys()) + list(MAIN_COMMANDS.keys()) + list(ADMIN_COMMANDS.keys())):
+        await message.answer("Опубликовал💌")
+        await _send_message_all_users("❗❗❗"
+                                      "От создателя😎❗❗❗\n\n"
+                                      + message.text)
+        await state.reset_state(with_data=False)
+    else:
+        await message.answer("Пока рано для команд создатель!")
+        await message.answer("Давай сначала сделаем публикацию😎")
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/statistics']], state='*')
+@_DP.message_handler(commands=[ADMIN_COMMANDS['/statistics']], state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -119,7 +97,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             await message.answer("Общая статистика📋:\n\n" + f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
                                                              f'♦️ Лент запущено👂 - {all_listen_users}\n'
                                                              f'♦️ Каналов 🌍 -  {all_listen_channels_len}\n',
-                                 reply_markup=bot_types.ReplyKeyboardRemove())
+                                 reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
@@ -129,7 +107,21 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 
 
 # COMMANDS
-@_DP.message_handler(commands=[ALL_COMMANDS['/start']], state='*')
+@_DP.message_handler(commands=[MAIN_COMMANDS['/menu']], state='*')
+async def _on_menu(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        menu_keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+        buttons = list(MENU_COMMANDS.keys())
+        if message.from_user.id == ADMIN_ID:
+            buttons += list(ADMIN_COMMANDS.keys())
+        menu_keyboard.add(*buttons)
+        await message.answer(bot_messages_ru['menu'], reply_markup=menu_keyboard)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(commands=[MAIN_COMMANDS['/start']], state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not await state.get_data():
         for text in bot_messages_ru['start'][0]:
@@ -162,7 +154,8 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
             await message.answer(text)
         return
 
-    for text in bot_messages_ru['enter_init_listen'][3]:
+    await message.answer(bot_messages_ru['enter_init_listen'][3][0], reply_markup=SUPPORT_KEYBOARD)
+    for text in bot_messages_ru['enter_init_listen'][3][1:]:
         await message.answer(text)
 
     async with state.proxy() as data:
@@ -175,38 +168,33 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/on']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/on']], state='*')
 async def _start_tape(message: bot_types.Message, state: FSMContext):
     data = await state.get_data()
     if data['is_listen']:
-        for text in bot_messages_ru['start_tape'][0]:
-            await message.answer(text)
+        await message.answer(bot_messages_ru['start_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
     else:
         if not data['listen_channels']:
-            for text in bot_messages_ru['start_tape'][1]:
-                await message.answer(text)
+            await message.answer(bot_messages_ru['start_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in bot_messages_ru['start_tape'][1][1:]:
+                await message.answer(text, reply_markup=SUPPORT_KEYBOARD)
         else:
-            for text in bot_messages_ru['start_tape'][2]:
-                await message.answer(text)
-
+            await message.answer(bot_messages_ru['start_tape'][2][0], reply_markup=SUPPORT_KEYBOARD)
             async with state.proxy() as data:
                 data['is_listen'] = True
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/off']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/off']], state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if (await state.get_data())['is_listen']:
-        for text in bot_messages_ru['stop_tape'][0]:
-            await message.answer(text)
-
+        await message.answer(bot_messages_ru['stop_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
         async with state.proxy() as data:
             data['is_listen'] = False
     else:
-        for text in bot_messages_ru['stop_tape'][1]:
-            await message.answer(text)
+        await message.answer(bot_messages_ru['stop_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/help']], state='*')
+@_DP.message_handler(commands=[MAIN_COMMANDS['/help']], state='*')
 async def _on_help(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['help'])
@@ -215,7 +203,7 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/subscriptions']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/subscriptions']], state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
@@ -231,7 +219,10 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
                     table_text += f"🔸 /{username} - {title}\n"
                 else:
                     table_text += f"🔸 @{username} - {title}\n"
-            await message.answer(table_text)
+            if state_name == DELETE_STATE_NAME or state_name == ADD_STATE_NAME:
+                await message.answer(table_text)
+            else:
+                await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
 
             if not_exist_channel_ids:
                 await _send_message_channel_subscribers(bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
@@ -243,7 +234,7 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/add']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/add']], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -254,14 +245,15 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
         await UpdateStates.enter_add_listen_channels.set()
     else:
-        for text in bot_messages_ru['state_if_exist']:
+        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
+        for text in bot_messages_ru['state_if_exist'][1:]:
             await message.answer(text)
 
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/end':
-        await message.answer(bot_messages_ru['end'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+        await message.answer(bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
         for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
         await _reload_listener()
@@ -271,7 +263,8 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([message.text])
 
     if not exist_channels and not not_exist_channel_entities:
-        for text in bot_messages_ru['state_if_exist']:
+        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
+        for text in bot_messages_ru['state_if_exist'][1:]:
             await message.answer(text)
         return
 
@@ -295,7 +288,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/delete']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/delete']], state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
@@ -310,7 +303,8 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
             for text in bot_messages_ru['delete_listen'][1]:
                 await message.answer(text)
     else:
-        for text in bot_messages_ru['state_if_exist']:
+        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
+        for text in bot_messages_ru['state_if_exist'][1:]:
             await message.answer(text)
 
 
@@ -319,7 +313,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     text = message.text
 
     if text == '/end':
-        await message.answer(bot_messages_ru['end'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+        await message.answer(bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
         for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
         await state.reset_state(with_data=False)
@@ -327,14 +321,15 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
     async with state.proxy() as data:
         if not data['listen_channels']:
-            for text in bot_messages_ru['enter_delete_listen'][0]:
+            await message.answer(bot_messages_ru['enter_delete_listen'][0][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in bot_messages_ru['enter_delete_listen'][0][1:]:
                 await message.answer(text)
+            await state.reset_state(with_data=False)
             return
 
     if text[0] == '/' and text != '/subscriptions':
         text = '@' + text[1:]
     elif text == '/subscriptions':
-        await _get_subscriptions_table(message=message, state=state)
         return
     else:
         pass
@@ -366,18 +361,19 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
                                                                     user_id=message.from_user.id)
 
 
-@_DP.message_handler(commands=[ALL_COMMANDS['/wish']], state='*')
+@_DP.message_handler(commands=[MENU_COMMANDS['/wish']], state='*')
 async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
         if text:
             await message.answer(
-                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2])
+                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2], reply_markup=SUPPORT_KEYBOARD)
             for text in bot_messages_ru['wish'][1]:
                 await message.answer(text)
             await SupportStates.switch_wish.set()
         else:
-            for text in bot_messages_ru['wish'][2]:
+            await message.answer(text in bot_messages_ru['wish'][2][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in bot_messages_ru['wish'][2][1:]:
                 await message.answer(text)
             await SupportStates.enter_wish.set()
     else:
@@ -417,7 +413,8 @@ async def _echo(message: bot_types.Message):
 
 # CHECK
 async def _check_channel_urls_exist(urls):
-    valid_urls = list(set(urls) - set(ALL_COMMANDS.keys()))
+    ALL_COMMANDS = set(ADMIN_COMMANDS.keys()) | set(MAIN_COMMANDS.keys()) | set(MENU_COMMANDS.keys())
+    valid_urls = list(set(urls) - ALL_COMMANDS)
     if not valid_urls:
         return {}, []
 
@@ -516,10 +513,12 @@ async def _notify_users_about_engineering_works(is_start):
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
-        text = bot_messages_ru['engineering_works'][0] if not is_start \
-            else bot_messages_ru['engineering_works'][1]
-        await _BOT.send_message(chat_id=obj["user"],
-                                text=text)
+        if not is_start:
+            await _BOT.send_message(chat_id=obj["user"],
+                                    text=bot_messages_ru['engineering_works'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+        else:
+            await _BOT.send_message(chat_id=obj["user"],
+                                    text=bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
 
 
 async def _send_message_all_users(post_text):
@@ -596,15 +595,10 @@ def run():
     # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
     _CLIENT.loop.run_until_complete(store.delete_all_tape_channel_to_store())
     _CLIENT.loop.run_until_complete(_reload_listener())
-    executor.start_polling(_DP, skip_updates=True, loop=_CLIENT.loop)
-
-
-async def stop():
-    await _CLIENT.disconnect()
-    sys.exit(0)
+    executor.start_polling(_DP, skip_updates=True)
 
 
 if __name__ == '__main__':
     run()
     # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=False))
-    _CLIENT.loop.run_until_complete(stop())
+    _CLIENT.disconnect()
