@@ -246,7 +246,11 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
 @_DP.message_handler(commands=[ALL_COMMANDS['/add']], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        for text in bot_messages_ru['add_listen']:
+        keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+        buttons = ["/end"]
+        keyboard.add(*buttons)
+        await message.answer(bot_messages_ru['add_listen'][0], reply_markup=keyboard)
+        for text in bot_messages_ru['add_listen'][1:]:
             await message.answer(text)
         await UpdateStates.enter_add_listen_channels.set()
     else:
@@ -257,7 +261,8 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
     if message.text == '/end':
-        for text in bot_messages_ru['end']:
+        await message.answer(bot_messages_ru['end'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+        for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
         await _reload_listener()
         await state.reset_state(with_data=False)
@@ -294,7 +299,11 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
-            for text in bot_messages_ru['delete_listen'][0]:
+            keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+            buttons = ["/end"]
+            keyboard.add(*buttons)
+            await message.answer(bot_messages_ru['delete_listen'][0][0], reply_markup=keyboard)
+            for text in bot_messages_ru['delete_listen'][0][1:]:
                 await message.answer(text)
             await UpdateStates.enter_delete_listen_channel.set()
         else:
@@ -310,7 +319,8 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
     text = message.text
 
     if text == '/end':
-        for text in bot_messages_ru['end']:
+        await message.answer(bot_messages_ru['end'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+        for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
         await state.reset_state(with_data=False)
         return
