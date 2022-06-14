@@ -53,8 +53,10 @@ MENU_COMMANDS = {'/on': 'on',
                  '/delete': 'delete',
                  '/wish': 'wish'
                  }
+ALL_COMMANDS = set(list(ADMIN_COMMANDS.keys()) + list(MAIN_COMMANDS.keys()) + list(MENU_COMMANDS.keys()))
 
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/menu', '/help'])
+END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/end'])
 
 
 # ADMIN
@@ -63,7 +65,8 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
             await message.answer("Внимаю создатель🤩")
-            await message.answer("Какой пост хотите опубликовать для всех пользователей?", reply_markup=SUPPORT_KEYBOARD)
+            await message.answer("Какой пост хотите опубликовать для всех пользователей?",
+                                 reply_markup=SUPPORT_KEYBOARD)
             await AdminStates.enter_post.set()
         else:
             for text in bot_messages_ru['echo']:
@@ -75,7 +78,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
-    if not message.text in (list(ADMIN_COMMANDS.keys()) + list(MAIN_COMMANDS.keys()) + list(ADMIN_COMMANDS.keys())):
+    if message.text not in ALL_COMMANDS:
         await message.answer("Опубликовал💌")
         await _send_message_all_users("❗❗❗"
                                       "От создателя😎❗❗❗\n\n"
@@ -123,12 +126,16 @@ async def _on_menu(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(commands=[MAIN_COMMANDS['/start']], state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
-    if not await state.get_data():
-        for text in bot_messages_ru['start'][0]:
-            await message.answer(text)
-        await StartQuestionStates.enter_initial_listen_channels.set()
+    if not (await state.get_state()):
+        if not await state.get_data():
+            for text in bot_messages_ru['start'][0]:
+                await message.answer(text)
+            await StartQuestionStates.enter_initial_listen_channels.set()
+        else:
+            for text in bot_messages_ru['start'][1]:
+                await message.answer(text)
     else:
-        for text in bot_messages_ru['start'][1]:
+        for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
 
 
@@ -170,28 +177,36 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
 
 @_DP.message_handler(commands=[MENU_COMMANDS['/on']], state='*')
 async def _start_tape(message: bot_types.Message, state: FSMContext):
-    data = await state.get_data()
-    if data['is_listen']:
-        await message.answer(bot_messages_ru['start_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
-    else:
-        if not data['listen_channels']:
-            await message.answer(bot_messages_ru['start_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
-            for text in bot_messages_ru['start_tape'][1][1:]:
-                await message.answer(text, reply_markup=SUPPORT_KEYBOARD)
+    if not (await state.get_state()):
+        data = await state.get_data()
+        if data['is_listen']:
+            await message.answer(bot_messages_ru['start_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
         else:
-            await message.answer(bot_messages_ru['start_tape'][2][0], reply_markup=SUPPORT_KEYBOARD)
-            async with state.proxy() as data:
-                data['is_listen'] = True
+            if not data['listen_channels']:
+                await message.answer(bot_messages_ru['start_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
+                for text in bot_messages_ru['start_tape'][1][1:]:
+                    await message.answer(text, reply_markup=SUPPORT_KEYBOARD)
+            else:
+                await message.answer(bot_messages_ru['start_tape'][2][0], reply_markup=SUPPORT_KEYBOARD)
+                async with state.proxy() as data:
+                    data['is_listen'] = True
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=[MENU_COMMANDS['/off']], state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
-    if (await state.get_data())['is_listen']:
-        await message.answer(bot_messages_ru['stop_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
-        async with state.proxy() as data:
-            data['is_listen'] = False
+    if not (await state.get_state()):
+        if (await state.get_data())['is_listen']:
+            await message.answer(bot_messages_ru['stop_tape'][0][0], reply_markup=SUPPORT_KEYBOARD)
+            async with state.proxy() as data:
+                data['is_listen'] = False
+        else:
+            await message.answer(bot_messages_ru['stop_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
     else:
-        await message.answer(bot_messages_ru['stop_tape'][1][0], reply_markup=SUPPORT_KEYBOARD)
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=[MAIN_COMMANDS['/help']], state='*')
@@ -237,16 +252,12 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
 @_DP.message_handler(commands=[MENU_COMMANDS['/add']], state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
-        keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-        buttons = ["/end"]
-        keyboard.add(*buttons)
-        await message.answer(bot_messages_ru['add_listen'][0], reply_markup=keyboard)
+        await message.answer(bot_messages_ru['add_listen'][0], reply_markup=END_KEYBOARD)
         for text in bot_messages_ru['add_listen'][1:]:
             await message.answer(text)
         await UpdateStates.enter_add_listen_channels.set()
     else:
-        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
-        for text in bot_messages_ru['state_if_exist'][1:]:
+        for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
 
 
@@ -263,8 +274,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([message.text])
 
     if not exist_channels and not not_exist_channel_entities:
-        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
-        for text in bot_messages_ru['state_if_exist'][1:]:
+        for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
         return
 
@@ -276,14 +286,19 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     async with state.proxy() as data:
         new_channel_id = list(exist_channels.keys())[0]
         if new_channel_id not in set(data['listen_channels']):
+            for text in bot_messages_ru['enter_add_listen'][2]:
+                await message.answer(text)
+
+            if not data['listen_channels']:
+                data['is_listen'] = True
+                for text in bot_messages_ru['start_tape'][2]:
+                    await message.answer(text)
+
             data['listen_channels'].append(new_channel_id)
         else:
             for text in bot_messages_ru['enter_add_listen'][1]:
                 await message.answer(text)
             return
-
-    for text in bot_messages_ru['enter_add_listen'][2]:
-        await message.answer(text)
     await _join_new_listen_channels_to_client([new_channel_id])
     await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
@@ -292,10 +307,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
-            keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-            buttons = ["/end"]
-            keyboard.add(*buttons)
-            await message.answer(bot_messages_ru['delete_listen'][0][0], reply_markup=keyboard)
+            await message.answer(bot_messages_ru['delete_listen'][0][0], reply_markup=END_KEYBOARD)
             for text in bot_messages_ru['delete_listen'][0][1:]:
                 await message.answer(text)
             await UpdateStates.enter_delete_listen_channel.set()
@@ -303,8 +315,7 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
             for text in bot_messages_ru['delete_listen'][1]:
                 await message.answer(text)
     else:
-        await message.answer(bot_messages_ru['state_if_exist'][0], reply_markup=SUPPORT_KEYBOARD)
-        for text in bot_messages_ru['state_if_exist'][1:]:
+        for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
 
 
@@ -319,46 +330,40 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
         await state.reset_state(with_data=False)
         return
 
-    async with state.proxy() as data:
-        if not data['listen_channels']:
-            await message.answer(bot_messages_ru['enter_delete_listen'][0][0], reply_markup=SUPPORT_KEYBOARD)
-            for text in bot_messages_ru['enter_delete_listen'][0][1:]:
-                await message.answer(text)
-            await state.reset_state(with_data=False)
-            return
-
-    if text[0] == '/' and text != '/subscriptions':
+    if text[0] == '/' and text not in ALL_COMMANDS:
         text = '@' + text[1:]
-    elif text == '/subscriptions':
-        return
+    elif text in ALL_COMMANDS:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
     else:
         pass
 
-    exist_channels, not_exist_channel_entities = await _check_channel_urls_exist([text])
+    exist_channels_to_store = await store.check_exist_channel_usernames_to_store([text], message.from_user.id)
 
-    if not exist_channels and not not_exist_channel_entities:
-        for text in bot_messages_ru['state_if_exist']:
-            await message.answer(text)
-        return
-
-    if not_exist_channel_entities:
-        for text in bot_messages_ru['enter_delete_listen'][1]:
-            await message.answer(text)
-    else:
-        del_channel_id = list(exist_channels.keys())[0]
+    if exist_channels_to_store:
+        channel_id = list(exist_channels_to_store.keys())[0]
         async with state.proxy() as data:
-            if del_channel_id in set(data['listen_channels']):
-                data['listen_channels'].remove(del_channel_id)
-            else:
-                for text in bot_messages_ru['enter_delete_listen'][2]:
+            data['listen_channels'].remove(channel_id)
+
+            for text in bot_messages_ru['enter_delete_listen'][1]:
+                await message.answer(text)
+
+            if not data['listen_channels']:
+                data['is_listen'] = False
+                await message.answer(bot_messages_ru['enter_delete_listen'][0][0], reply_markup=SUPPORT_KEYBOARD)
+                for text in bot_messages_ru['enter_delete_listen'][0][1:]:
                     await message.answer(text)
+                for text in bot_messages_ru['stop_tape'][0]:
+                    await message.answer(text)
+                await state.reset_state(with_data=False)
                 return
 
-        for text in bot_messages_ru['enter_delete_listen'][3]:
-            await message.answer(text)
         await _get_subscriptions_table(message=message, state=state)
-        _ = await store.delete_listen_channels_to_common_collection([del_channel_id],
+        _ = await store.delete_listen_channels_to_common_collection([channel_id],
                                                                     user_id=message.from_user.id)
+    else:
+        for text in bot_messages_ru['enter_delete_listen'][2]:
+            await message.answer(text)
 
 
 @_DP.message_handler(commands=[MENU_COMMANDS['/wish']], state='*')
@@ -367,12 +372,13 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
         text = await store.get_user_wish(message.from_user.id)
         if text:
             await message.answer(
-                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2], reply_markup=SUPPORT_KEYBOARD)
+                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2],
+                reply_markup=SUPPORT_KEYBOARD)
             for text in bot_messages_ru['wish'][1]:
                 await message.answer(text)
             await SupportStates.switch_wish.set()
         else:
-            await message.answer(text in bot_messages_ru['wish'][2][0], reply_markup=SUPPORT_KEYBOARD)
+            await message.answer(bot_messages_ru['wish'][2][0], reply_markup=SUPPORT_KEYBOARD)
             for text in bot_messages_ru['wish'][2][1:]:
                 await message.answer(text)
             await SupportStates.enter_wish.set()
@@ -383,11 +389,11 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=SupportStates.switch_wish)
 async def _switch_wish(message: bot_types.Message, state: FSMContext):
-    if message.text == 'Да':
+    if message.text == 'да':
         for text in bot_messages_ru['switch_wish'][0]:
             await message.answer(text)
         await SupportStates.enter_wish.set()
-    elif message.text == 'Нет':
+    elif message.text == 'нет':
         for text in bot_messages_ru['switch_wish'][1]:
             await message.answer(text)
         await state.reset_state(with_data=False)
@@ -413,7 +419,6 @@ async def _echo(message: bot_types.Message):
 
 # CHECK
 async def _check_channel_urls_exist(urls):
-    ALL_COMMANDS = set(ADMIN_COMMANDS.keys()) | set(MAIN_COMMANDS.keys()) | set(MENU_COMMANDS.keys())
     valid_urls = list(set(urls) - ALL_COMMANDS)
     if not valid_urls:
         return {}, []
@@ -443,14 +448,14 @@ async def _check_channel_exist_to_client(urls):
     exist_channel = {}
     not_exist_channel_urls = []
 
-    usernames = {await _on_telegram_username(url) for url in urls}
+    usernames = {await store.on_telegram_username(url) for url in urls}
     all_dialogs = {dialog.entity.username: dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True)}
 
     for username in usernames:
         if all_dialogs.get(username):
             exist_channel[all_dialogs[username]] = f"@{username}"
         else:
-            not_exist_channel_urls.append(await _on_telegram_url(username))
+            not_exist_channel_urls.append(await store.on_telegram_url(username))
     return exist_channel, not_exist_channel_urls
 
 
@@ -515,7 +520,8 @@ async def _notify_users_about_engineering_works(is_start):
     async for obj in users_coll.find({}):
         if not is_start:
             await _BOT.send_message(chat_id=obj["user"],
-                                    text=bot_messages_ru['engineering_works'][0], reply_markup=bot_types.ReplyKeyboardRemove())
+                                    text=bot_messages_ru['engineering_works'][0],
+                                    reply_markup=bot_types.ReplyKeyboardRemove())
         else:
             await _BOT.send_message(chat_id=obj["user"],
                                     text=bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
@@ -581,19 +587,9 @@ async def _on_new_channel_message(event: events.NewMessage.Event):
             _LOGGER.error(err)
 
 
-async def _on_telegram_username(url):
-    tg_str = r'(@)?(https://)?(t.me/)?(\s+)?'
-    return re.sub(tg_str, '', url)
-
-
-async def _on_telegram_url(username):
-    return f'https://t.me/{username}'
-
-
 def run():
     _CLIENT.start(phone=PHONE)
     # _CLIENT.loop.run_until_complete(_notify_users_about_engineering_works(is_start=True))
-    _CLIENT.loop.run_until_complete(store.delete_all_tape_channel_to_store())
     _CLIENT.loop.run_until_complete(_reload_listener())
     executor.start_polling(_DP, skip_updates=True)
 

@@ -1,15 +1,19 @@
 from aiogram.contrib.fsm_storage.mongo import MongoStorage
+import re
 from . import conf
 
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 
 
-async def delete_all_tape_channel_to_store():
+async def check_exist_channel_usernames_to_store(urls, user_id):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    users_coll.update_many({}, {'$unset': {'data.tape_channel': ""}})
+    listen_channel_nicknames = {await on_telegram_username(obj['nickname']): obj['id'] async for obj in channels_coll.find({"users": {'$in': [user_id]}})}
+    exist_usernames = list({await on_telegram_username(url) for url in urls} & set(listen_channel_nicknames.keys()))
+
+    return {listen_channel_nicknames[username]: f'@{username}' for username in exist_usernames}
 
 
 async def get_all_listen_users():
@@ -118,3 +122,12 @@ async def add_user_wish(user_id, text, db_name=conf.MONGO_DBNAME):
     else:
         data = {'user': user_id, 'text': text}
         await wish_coll.insert_one(data)
+
+
+async def on_telegram_username(url):
+    tg_str = r'(@)?(https://)?(t.me/)?(\s+)?'
+    return re.sub(tg_str, '', url)
+
+
+async def on_telegram_url(username):
+    return f'https://t.me/{username}'
