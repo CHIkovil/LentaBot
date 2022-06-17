@@ -5,6 +5,21 @@ from . import conf
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 
 
+async def drop_wish():
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    wish_coll = db[conf.WISH_COLL_NAME]
+    await wish_coll.drop()
+
+
+async def get_all_wish_texts():
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    wish_coll = db[conf.WISH_COLL_NAME]
+
+    return [obj['text'] + '\n\n\n' async for obj in wish_coll.find({})]
+
+
 async def check_exist_channel_usernames_to_store(urls, user_id):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]

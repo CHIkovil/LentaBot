@@ -38,7 +38,8 @@ ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_chann
                                                                                                        '', 1)
 
 ADMIN_COMMANDS = {'/post': 'post',
-                  '/statistics': 'statistics'
+                  '/statistics': 'statistics',
+                  '/reset_wish': 'reset_wish'
                   }
 
 MAIN_COMMANDS = {'/start': 'start',
@@ -57,6 +58,8 @@ ALL_COMMANDS = set(list(ADMIN_COMMANDS.keys()) + list(MAIN_COMMANDS.keys()) + li
 
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/menu', '/help'])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/end'])
+
+MEDIA_PATH = 'Temp'
 
 
 # ADMIN
@@ -94,17 +97,53 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_users_len = len(await store.get_all_users())
             all_listen_users = len(await store.get_all_listen_users())
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
+            all_users_wishes = len(await store.get_all_wish_texts())
 
-            await message.answer("Общая статистика📋:\n\n" + f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
-                                                             f'♦️ Лент запущено👂 - {all_listen_users}\n'
-                                                             f'♦️ Каналов 🌍 -  {all_listen_channels_len}\n',
-                                 reply_markup=SUPPORT_KEYBOARD)
+            await message.answer("Общая статистика📋:\n\n" +
+                                f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
+                                f'♦️ Лент запущено👂 - {all_listen_users}\n'
+                                f'♦️ Каналов 🌍 - {all_listen_channels_len}\n'
+                                f'♦️ Кол-во пожеланий💬 - {all_users_wishes}/{all_users_len}\n',
+                                reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
     else:
         for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
+
+
+@_DP.message_handler(commands=[ADMIN_COMMANDS['/reset_wish']], state='*')
+async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer('Отправляю все пожелания пользователей📩', reply_markup=SUPPORT_KEYBOARD)
+            texts = await store.get_all_wish_texts()
+            loop = asyncio.get_event_loop()
+            file_path = await loop.run_in_executor(None, _write_wishes_to_txt, texts)
+            await message.answer_document(open(file_path, 'rb'))
+            loop.run_in_executor(None, _delete_wishes_txt, file_path)
+            await store.drop_wish()
+        else:
+            for text in bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+def _write_wishes_to_txt(texts):
+    if not os.path.exists(MEDIA_PATH):
+        os.mkdir(MEDIA_PATH)
+
+    file_path = f'{MEDIA_PATH}/wishes.txt'
+    with open(file_path, 'w') as f:
+        f.writelines(texts)
+    return file_path
+
+
+def _delete_wishes_txt(path):
+    os.remove(path)
 
 
 # COMMANDS
@@ -543,7 +582,7 @@ async def _send_and_pin_message_all_users(post_text):
     async for obj in users_coll.find({}):
         try:
             message = await _BOT.send_message(chat_id=obj["user"],
-                                    text=post_text)
+                                              text=post_text)
             await _BOT.pin_chat_message(obj["user"], message.message_id)
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
@@ -552,9 +591,6 @@ async def _send_and_pin_message_all_users(post_text):
 
 
 # LISTENER
-MEDIA_PATH = 'Media'
-
-
 async def _reload_listener():
     listen_channel_ids = await store.get_all_listen_channel_ids()
 
@@ -595,7 +631,8 @@ async def _forward_new_message(event):
             file_paths = await _download_media(message, temp_folder)
 
             media = bot_types.MediaGroup()
-            caption_text = message[0].text + f'\n\nПереслано из https://t.me/{event.chat.username}/{event.messages[0].id}'
+            caption_text = message[
+                               0].text + f'\n\nПереслано из https://t.me/{event.chat.username}/{event.messages[0].id}'
             for index, path in enumerate(file_paths):
                 media.attach_photo(bot_types.InputFile(path), caption=caption_text if index == 0 else '')
 
