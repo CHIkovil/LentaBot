@@ -506,10 +506,15 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
 
     async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
         async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
-            await _BOT.send_message(chat_id=obj["user"],
-                                    text=
-                                    f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
-                                    + post_text)
+            try:
+                await _BOT.send_message(chat_id=obj["user"],
+                                        text=
+                                        f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
+                                        + post_text)
+            except Unauthorized:
+                await store.stop_listen_for_user(obj['user'])
+            except Exception as err:
+                _LOGGER.error(err)
 
 
 async def _notify_users_about_engineering_works(is_start):
@@ -518,13 +523,18 @@ async def _notify_users_about_engineering_works(is_start):
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
-        if not is_start:
-            await _BOT.send_message(chat_id=obj["user"],
-                                    text=bot_messages_ru['engineering_works'][0],
-                                    reply_markup=bot_types.ReplyKeyboardRemove())
-        else:
-            await _BOT.send_message(chat_id=obj["user"],
-                                    text=bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
+        try:
+            if not is_start:
+                await _BOT.send_message(chat_id=obj["user"],
+                                        text=bot_messages_ru['engineering_works'][0],
+                                        reply_markup=bot_types.ReplyKeyboardRemove())
+            else:
+                await _BOT.send_message(chat_id=obj["user"],
+                                        text=bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
+        except Unauthorized:
+            await store.stop_listen_for_user(obj['user'])
+        except Exception as err:
+            _LOGGER.error(err)
 
 
 async def _send_message_all_users(post_text):
@@ -537,12 +547,15 @@ async def _send_message_all_users(post_text):
             await _BOT.send_message(chat_id=obj["user"],
                                     text=post_text)
         except Unauthorized:
-            pass
+            await store.stop_listen_for_user(obj['user'])
         except Exception as err:
             _LOGGER.error(err)
 
 
 # LISTENER
+MEDIA_PATH = 'Media'
+
+
 async def _reload_listener():
     listen_channel_ids = await store.get_all_listen_channel_ids()
 
@@ -550,41 +563,81 @@ async def _reload_listener():
         return
 
     if _CLIENT.list_event_handlers():
+        _CLIENT.remove_event_handler(_on_new_channel_album_message, events.Album())
         _CLIENT.remove_event_handler(_on_new_channel_message, events.NewMessage())
 
+    _CLIENT.add_event_handler(_on_new_channel_album_message, events.Album(chats=listen_channel_ids))
     _CLIENT.add_event_handler(_on_new_channel_message, events.NewMessage(chats=listen_channel_ids))
 
 
-async def _on_new_channel_message(event: events.NewMessage.Event):
+async def _on_new_channel_album_message(event):
+    await _forward_new_message(event)
+
+
+async def _on_new_channel_message(event):
+    if not event.message.grouped_id:
+        await _forward_new_message(event)
+
+
+async def _forward_new_message(event):
     listen_channel_id = abs(10 ** 12 + event.chat_id)
 
     client = await store.STORAGE.get_client()
     db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
 
-    async for obj in users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
-                                               {"data.is_listen": True}]}):
-        try:
-            await _CLIENT.forward_messages(entity=MAIN_TAPE_CHANNEL_NAME, messages=event.message)
-            async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_NAME, limit=500):
-                if message.forward.chat_id == event.chat_id:
-                    await _BOT.forward_message(chat_id=obj['user'],
+    listen_user_ids = [obj['user'] async for obj in
+                       users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
+                                                 {"data.is_listen": True}]})]
+    try:
+        message = await event.forward_to(MAIN_TAPE_CHANNEL_ID)
+        if isinstance(message, list):
+            temp_folder = f'{listen_channel_id}/{event.grouped_id}'
+            file_paths = await _download_media(message, temp_folder)
+
+            media = bot_types.MediaGroup()
+            caption_text = message[0].text + f'\n\nПереслано из https://t.me/{event.chat.username}/{event.messages[0].id}'
+            for index, path in enumerate(file_paths):
+                media.attach_photo(bot_types.InputFile(path), caption=caption_text if index == 0 else '')
+
+            for id in listen_user_ids:
+                try:
+                    await _BOT.send_media_group(chat_id=id, media=media)
+                except Unauthorized:
+                    await store.stop_listen_for_user(id)
+                except Exception as err:
+                    _LOGGER.error(err)
+
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, _delete_media_group, temp_folder)
+        else:
+            for id in listen_user_ids:
+                try:
+                    await _BOT.forward_message(chat_id=id,
                                                from_chat_id=MAIN_TAPE_CHANNEL_ID,
                                                message_id=message.id)
-                    break
-        except AuthKeyError:
-            try:
-                await _send_message_channel_subscribers(bot_messages_ru['channel_on_protection'], [listen_channel_id])
-                await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
-                await _reload_listener()
-            except Unauthorized:
-                await store.stop_listen_for_user(obj['user'])
-            except Exception as err:
-                _LOGGER.error(err)
-        except Unauthorized:
-            await store.stop_listen_for_user(obj['user'])
-        except Exception as err:
-            _LOGGER.error(err)
+                except Unauthorized:
+                    await store.stop_listen_for_user(id)
+                except Exception as err:
+                    _LOGGER.error(err)
+    except AuthKeyError:
+        await _send_message_channel_subscribers(bot_messages_ru['channel_on_protection'], [listen_channel_id])
+        await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
+        await _reload_listener()
+
+
+async def _download_media(messages, temp_folder):
+    file_paths = []
+    group_path = f'{MEDIA_PATH}/{temp_folder}'
+    for index, message in enumerate(messages):
+        file_path = f"{group_path}/{index}"
+        file_paths.append(await _CLIENT.download_media(message.media, file_path))
+    return file_paths
+
+
+def _delete_media_group(temp_folder):
+    group_path = f'{MEDIA_PATH}/{temp_folder}'
+    shutil.rmtree(group_path)
 
 
 def run():

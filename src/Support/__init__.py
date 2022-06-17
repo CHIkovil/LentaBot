@@ -5,6 +5,7 @@ import re
 import os
 import sys
 import datetime
+import shutil
 from bson import ObjectId
 from telethon import TelegramClient, events, types as client_types, sync
 from telethon.tl.functions.channels import JoinChannelRequest
