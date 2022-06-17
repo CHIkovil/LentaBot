@@ -80,9 +80,7 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     if message.text not in ALL_COMMANDS:
         await message.answer("Опубликовал💌")
-        await _send_message_all_users("❗❗❗"
-                                      "От создателя😎❗❗❗\n\n"
-                                      + message.text)
+        await _send_and_pin_message_all_users(message.text)
         await state.reset_state(with_data=False)
     else:
         await message.answer("Пока рано для команд создатель!")
@@ -537,15 +535,16 @@ async def _notify_users_about_engineering_works(is_start):
             _LOGGER.error(err)
 
 
-async def _send_message_all_users(post_text):
+async def _send_and_pin_message_all_users(post_text):
     client = await store.STORAGE.get_client()
     db = client[MONGO_DBNAME]
     users_coll = db["aiogram_data"]
 
     async for obj in users_coll.find({}):
         try:
-            await _BOT.send_message(chat_id=obj["user"],
+            message = await _BOT.send_message(chat_id=obj["user"],
                                     text=post_text)
+            await _BOT.pin_chat_message(obj["user"], message.message_id)
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
         except Exception as err:
