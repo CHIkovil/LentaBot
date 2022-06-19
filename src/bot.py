@@ -37,33 +37,45 @@ ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_chann
 
                                                                                                        '', 1)
 
-ADMIN_COMMANDS = {'/post': 'post',
-                  '/statistics': 'statistics',
-                  '/reset_wish': 'reset_wish'
+ADMIN_COMMANDS = {'post': ('/post', '💌пост'),
+                  'statistics': ('/statistics', '📈статистика'),
+                  'reset_wish': ('/reset_wish', '📩сбор пожеланий')
                   }
 
-MAIN_COMMANDS = {'/start': 'start',
-                 '/menu': 'menu',
-                 '/help': 'help',
+MAIN_COMMANDS = {'start': ('/start', '☀️старт'),
+                 'menu': ('/menu', '⌨️меню'),
+                 'help': ('/help', '🙏помощь'),
                  }
 
-MENU_COMMANDS = {'/on': 'on',
-                 '/off': 'off',
-                 '/subscriptions': 'subscriptions',
-                 '/add': 'add',
-                 '/delete': 'delete',
-                 '/wish': 'wish'
+MENU_COMMANDS = {'on': ('/on', '🚀вкл. ленту'),
+                 'off': ('/off', '🛑выкл. ленту'),
+                 'add': ('/add', '➕добавить подписку'),
+                 'delete': ('/delete', '➖удалить подписку'),
+                 'subscriptions': ('/subscriptions', '📋твои подписки'),
+                 'wish': ('/wish', '💬оставить пожелание')
                  }
-ALL_COMMANDS = set(list(ADMIN_COMMANDS.keys()) + list(MAIN_COMMANDS.keys()) + list(MENU_COMMANDS.keys()))
 
-SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/menu', '/help'])
+
+def _get_all_commands():
+    result = []
+    all_commands_values = list(ADMIN_COMMANDS.values()) + list(MAIN_COMMANDS.values()) + list(MENU_COMMANDS.values())
+    for commands in all_commands_values:
+        result += list(commands)
+
+    return set(result)
+
+
+ALL_COMMANDS = _get_all_commands()
+
+SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
+    *[MAIN_COMMANDS['menu'][1], MAIN_COMMANDS['help'][1]])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/end'])
 
 MEDIA_PATH = 'Temp'
 
 
 # ADMIN
-@_DP.message_handler(commands=[ADMIN_COMMANDS['/post']], state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['post']), state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -90,7 +102,7 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
         await message.answer("Давай сначала сделаем публикацию😎")
 
 
-@_DP.message_handler(commands=[ADMIN_COMMANDS['/statistics']], state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['statistics']), state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -100,11 +112,11 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_users_wishes = len(await store.get_all_wish_texts())
 
             await message.answer("Общая статистика📋:\n\n" +
-                                f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
-                                f'♦️ Лент запущено👂 - {all_listen_users}\n'
-                                f'♦️ Каналов 🌍 - {all_listen_channels_len}\n'
-                                f'♦️ Кол-во пожеланий💬 - {all_users_wishes}/{all_users_len}\n',
-                                reply_markup=SUPPORT_KEYBOARD)
+                                 f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
+                                 f'♦️ Лент запущено👂 - {all_listen_users}\n'
+                                 f'♦️ Каналов 🌍 - {all_listen_channels_len}\n'
+                                 f'♦️ Кол-во пожеланий💬 - {all_users_wishes}/{all_users_len}\n',
+                                 reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
@@ -113,7 +125,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[ADMIN_COMMANDS['/reset_wish']], state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['reset_wish']), state='*')
 async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -147,21 +159,27 @@ def _delete_wishes_txt(path):
 
 
 # COMMANDS
-@_DP.message_handler(commands=[MAIN_COMMANDS['/menu']], state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['menu']), state='*')
 async def _on_menu(message: bot_types.Message, state: FSMContext):
+    func = lambda A, n=2: [A[i:i + n] for i in range(0, len(A), n)]
+
     if not (await state.get_state()):
         menu_keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
-        buttons = list(MENU_COMMANDS.keys())
+        buttons = [cmd[1] for cmd in MENU_COMMANDS.values()]
         if message.from_user.id == ADMIN_ID:
-            buttons += list(ADMIN_COMMANDS.keys())
-        menu_keyboard.add(*buttons)
+            buttons += [cmd[1] for cmd in ADMIN_COMMANDS.values()]
+
+        buttons_rows = func(buttons)
+        for row in buttons_rows:
+            menu_keyboard.row(*row)
+
         await message.answer(bot_messages_ru['menu'], reply_markup=menu_keyboard)
     else:
         for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MAIN_COMMANDS['/start']], state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['start']), state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if not await state.get_data():
@@ -213,7 +231,7 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/on']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['on']), state='*')
 async def _start_tape(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         data = await state.get_data()
@@ -233,7 +251,7 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/off']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['off']), state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['is_listen']:
@@ -247,7 +265,7 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MAIN_COMMANDS['/help']], state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['help']), state='*')
 async def _on_help(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['help'])
@@ -256,7 +274,7 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/subscriptions']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['subscriptions']), state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
@@ -287,7 +305,7 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/add']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['add']), state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['add_listen'][0], reply_markup=END_KEYBOARD)
@@ -341,7 +359,7 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/delete']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['delete']), state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
@@ -404,7 +422,7 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
             await message.answer(text)
 
 
-@_DP.message_handler(commands=[MENU_COMMANDS['/wish']], state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['wish']), state='*')
 async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
