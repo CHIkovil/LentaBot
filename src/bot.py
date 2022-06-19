@@ -171,6 +171,7 @@ async def _on_start(message: bot_types.Message, state: FSMContext):
         else:
             for text in bot_messages_ru['start'][1]:
                 await message.answer(text)
+            await _start_tape(message, state)
     else:
         for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
@@ -409,7 +410,7 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
         text = await store.get_user_wish(message.from_user.id)
         if text:
             await message.answer(
-                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text + bot_messages_ru['wish'][0][2],
+                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text,
                 reply_markup=SUPPORT_KEYBOARD)
             for text in bot_messages_ru['wish'][1]:
                 await message.answer(text)
