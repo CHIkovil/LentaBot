@@ -651,7 +651,7 @@ async def _forward_new_message(event):
 
             media = bot_types.MediaGroup()
             caption_text = message[
-                               0].text + f'\n\nПереслано из https://t.me/{event.chat.username}/{event.messages[0].id}'
+                               0].text + f'\n\nПереслано от https://t.me/{event.chat.username}/{event.messages[0].id}'
             for index, path in enumerate(file_paths):
                 media.attach_photo(bot_types.InputFile(path), caption=caption_text if index == 0 else '')
 
