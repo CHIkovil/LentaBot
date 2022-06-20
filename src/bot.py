@@ -625,12 +625,14 @@ async def _reload_listener():
 
 
 async def _on_new_channel_album_message(event):
-    await _forward_new_message(event)
+    if await _check_not_double_messages(event):
+        await _forward_new_message(event)
 
 
 async def _on_new_channel_message(event):
     if not event.message.grouped_id:
-        await _forward_new_message(event)
+        if await _check_not_double_messages(event):
+            await _forward_new_message(event)
 
 
 async def _forward_new_message(event):
@@ -693,6 +695,18 @@ async def _download_media(messages, temp_folder):
 def _delete_media_group(temp_folder):
     group_path = f'{MEDIA_PATH}/{temp_folder}'
     shutil.rmtree(group_path)
+
+
+async def _check_not_double_messages(event):
+    messages = {message.forward.channel_post: message.grouped_id async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25)}
+    if event.grouped_id:
+        if event.grouped_id not in set(messages.values()):
+            return True
+    else:
+        if event.message.id not in set(messages.keys()):
+            return True
+
+    return False
 
 
 def run():
