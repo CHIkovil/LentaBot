@@ -652,10 +652,18 @@ async def _forward_new_message(event):
             file_paths = await _download_media(message, temp_folder)
 
             media = bot_types.MediaGroup()
-            caption_message = [msg for msg in message if msg.text != ''][0]
-            caption_text = caption_message.text + f'\n\nПереслано от https://t.me/{event.chat.username}/{caption_message.forward.channel_post}'
+            caption_message = [msg for msg in message if msg.text != '']
+            caption_text = ''
+            link_text = f'\n\nПереслано от https://t.me/{event.chat.username}/'
+            if caption_message:
+                link_text += f'{caption_message[0].forward.channel_post}'
+                caption_text += caption_message[0].text
+            else:
+                link_text += f'{event.messages[0].id}'
+
+            full_caption_text = caption_text + link_text
             for index, path in enumerate(file_paths):
-                media.attach_photo(bot_types.InputFile(path), caption=caption_text if index == 0 else '')
+                media.attach_photo(bot_types.InputFile(path), caption=full_caption_text if index == 0 else '')
 
             for id in listen_user_ids:
                 try:
