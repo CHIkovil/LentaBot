@@ -625,14 +625,12 @@ async def _reload_listener():
 
 
 async def _on_new_channel_album_message(event):
-    if await _check_not_dublication_event(event):
-        await _forward_new_message(event)
+    await _forward_new_message(event)
 
 
 async def _on_new_channel_message(event):
     if not event.message.grouped_id:
-        if await _check_not_dublication_event(event):
-            await _forward_new_message(event)
+        await _forward_new_message(event)
 
 
 async def _forward_new_message(event):
@@ -646,6 +644,8 @@ async def _forward_new_message(event):
                        users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
                                                  {"data.is_listen": True}]})]
     try:
+        if await check_dublication_event(event):
+            return
         message = await event.forward_to(MAIN_TAPE_CHANNEL_ID)
         if isinstance(message, list):
             temp_folder = f'{event.grouped_id}'
@@ -697,16 +697,16 @@ def _delete_media_group(temp_folder):
     shutil.rmtree(group_path)
 
 
-async def _check_not_dublication_event(event):
+async def check_dublication_event(event):
     messages = {message.forward.channel_post: message.grouped_id async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25)}
     if event.grouped_id:
         if event.grouped_id not in set(messages.values()):
-            return True
+            return False
     else:
         if event.message.id not in set(messages.keys()):
-            return True
+            return False
 
-    return False
+    return True
 
 
 def run():
