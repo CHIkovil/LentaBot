@@ -689,6 +689,8 @@ async def _forward_new_message(event):
         await _send_message_channel_subscribers(bot_messages_ru['channel_on_protection'], [listen_channel_id])
         await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
         await _reload_listener()
+    except Exception as err:
+        _LOGGER.error(err)
 
 
 async def _download_media(messages, temp_folder):
@@ -706,7 +708,7 @@ def _delete_media_group(temp_folder):
 
 
 async def check_dublication_event(event):
-    messages = {message.forward.channel_post: message.grouped_id async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25)}
+    messages = {message.forward.channel_post: message.grouped_id async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25) if message.forward}
     if event.grouped_id:
         if event.grouped_id not in set(messages.values()):
             return False
