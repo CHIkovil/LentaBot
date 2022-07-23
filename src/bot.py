@@ -74,8 +74,8 @@ ALL_COMMANDS = _get_all_commands()
 
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
     *[MAIN_COMMANDS['menu'][1], MAIN_COMMANDS['help'][1]])
-END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/end'])
-CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['Да', 'Нет'])
+END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[TEMP_COMMAND['end'][1]])
+CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[TEMP_COMMAND['yes'][1], TEMP_COMMAND['no'][1]])
 
 MEDIA_PATH = 'Temp'
 
@@ -335,7 +335,7 @@ async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=UpdateStates.enter_add_listen_channels)
 async def _enter_add_listen_channels(message: bot_types.Message, state: FSMContext):
-    if message.text == '/end':
+    if message.text == TEMP_COMMAND['end'][0] or message.text == TEMP_COMMAND['end'][1]:
         await message.answer(bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
         for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
@@ -396,7 +396,7 @@ async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
 async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMContext):
     text = message.text
 
-    if text == '/end':
+    if text == TEMP_COMMAND['end'][0] or text == TEMP_COMMAND['end'][1]:
         await message.answer(bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
         for text in bot_messages_ru['end'][1:]:
             await message.answer(text)
@@ -463,10 +463,10 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=SupportStates.switch_wish)
 async def _switch_wish(message: bot_types.Message, state: FSMContext):
-    if message.text == 'Да':
+    if message.text == TEMP_COMMAND['yes'][1]:
         await message.answer(bot_messages_ru['switch_wish'][0][0], reply_markup=SUPPORT_KEYBOARD)
         await SupportStates.enter_wish.set()
-    elif message.text == 'Нет':
+    elif message.text == TEMP_COMMAND['no'][1]:
         await message.answer(bot_messages_ru['switch_wish'][1][0], reply_markup=SUPPORT_KEYBOARD)
         await state.reset_state(with_data=False)
     else:
