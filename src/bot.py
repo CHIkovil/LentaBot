@@ -70,12 +70,14 @@ ALL_COMMANDS = _get_all_commands()
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
     *[MAIN_COMMANDS['menu'][1], MAIN_COMMANDS['help'][1]])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['/end'])
+CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*['Да', 'Нет'])
 
 MEDIA_PATH = 'Temp'
 
 
 # ADMIN
-@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['post']), state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['post']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -102,7 +104,8 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
         await message.answer("Давай сначала сделаем публикацию😎")
 
 
-@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['statistics']), state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['statistics']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _get_statistics(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -125,7 +128,8 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['reset_wish']), state='*')
+@_DP.message_handler(filters.Text(equals=ADMIN_COMMANDS['reset_wish']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
@@ -159,7 +163,8 @@ def _delete_wishes_txt(path):
 
 
 # COMMANDS
-@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['menu']), state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['menu']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_menu(message: bot_types.Message, state: FSMContext):
     func = lambda A, n=2: [A[i:i + n] for i in range(0, len(A), n)]
 
@@ -179,7 +184,8 @@ async def _on_menu(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['start']), state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['start']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_start(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if not await state.get_data():
@@ -231,7 +237,8 @@ async def _enter_initial_listen_channels(message: bot_types.Message, state: FSMC
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['on']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['on']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _start_tape(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         data = await state.get_data()
@@ -251,7 +258,8 @@ async def _start_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['off']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['off']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _stop_tape(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['is_listen']:
@@ -265,7 +273,8 @@ async def _stop_tape(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['help']), state='*')
+@_DP.message_handler(filters.Text(equals=MAIN_COMMANDS['help']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_help(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['help'])
@@ -274,7 +283,8 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['subscriptions']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['subscriptions']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
@@ -305,7 +315,8 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['add']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['add']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _add_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         await message.answer(bot_messages_ru['add_listen'][0], reply_markup=END_KEYBOARD)
@@ -359,7 +370,8 @@ async def _enter_add_listen_channels(message: bot_types.Message, state: FSMConte
     await store.save_new_listen_channels_to_common_collection(exist_channels, message.from_user.id)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['delete']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['delete']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _delete_listen_channel(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if (await state.get_data())['listen_channels']:
@@ -422,14 +434,15 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['wish']), state='*')
+@_DP.message_handler(filters.Text(equals=MENU_COMMANDS['wish']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_wish(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         text = await store.get_user_wish(message.from_user.id)
         if text:
             await message.answer(
-                bot_messages_ru['wish'][0][0] + bot_messages_ru['wish'][0][1] + text,
-                reply_markup=SUPPORT_KEYBOARD)
+                bot_messages_ru['wish'][0][0] + text,
+                reply_markup=CHOICE_KEYBOARD)
             for text in bot_messages_ru['wish'][1]:
                 await message.answer(text)
             await SupportStates.switch_wish.set()
@@ -445,31 +458,30 @@ async def _on_wish(message: bot_types.Message, state: FSMContext):
 
 @_DP.message_handler(state=SupportStates.switch_wish)
 async def _switch_wish(message: bot_types.Message, state: FSMContext):
-    if message.text == 'да':
-        for text in bot_messages_ru['switch_wish'][0]:
-            await message.answer(text)
+    if message.text == 'Да':
+        await message.answer(bot_messages_ru['switch_wish'][0][0], reply_markup=SUPPORT_KEYBOARD)
         await SupportStates.enter_wish.set()
-    elif message.text == 'нет':
-        for text in bot_messages_ru['switch_wish'][1]:
-            await message.answer(text)
+    elif message.text == 'Нет':
+        await message.answer(bot_messages_ru['switch_wish'][1][0], reply_markup=SUPPORT_KEYBOARD)
         await state.reset_state(with_data=False)
     else:
-        for text in bot_messages_ru['switch_wish'][2]:
-            await message.answer(text)
+        await message.answer(bot_messages_ru['switch_wish'][2][0], reply_markup=SUPPORT_KEYBOARD)
         await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(state=SupportStates.enter_wish)
 async def _enter_wish(message: bot_types.Message, state: FSMContext):
-    for text in bot_messages_ru['enter_wish']:
+    await message.answer(bot_messages_ru['enter_wish'][0], reply_markup=SUPPORT_KEYBOARD)
+    for text in bot_messages_ru['enter_wish'][1:]:
         await message.answer(text)
     await store.add_user_wish(message.from_user.id, message.text)
     await state.reset_state(with_data=False)
 
 
-@_DP.message_handler()
+@_DP.message_handler(filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE))
 async def _echo(message: bot_types.Message):
-    for text in bot_messages_ru['echo']:
+    await message.answer(bot_messages_ru['echo'][0], reply_markup=SUPPORT_KEYBOARD)
+    for text in bot_messages_ru['echo'][1:]:
         await message.answer(text)
 
 
@@ -708,7 +720,8 @@ def _delete_media_group(temp_folder):
 
 
 async def check_dublication_event(event):
-    messages = {message.forward.channel_post: message.grouped_id async for message in _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25) if message.forward}
+    messages = {message.forward.channel_post: message.grouped_id async for message in
+                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25) if message.forward}
     if event.grouped_id:
         if event.grouped_id not in set(messages.values()):
             return False
