@@ -27,6 +27,7 @@ class SupportStates(StatesGroup):
 
 
 class AdminStates(StatesGroup):
+    switch_post = State()
     enter_post = State()
 
 
@@ -37,9 +38,9 @@ ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_chann
 
                                                                                                        '', 1)
 
-ADMIN_COMMANDS = {'post': ('/post', '💌пост'),
-                  'statistics': ('/statistics', '📈статистика'),
-                  'reset_wish': ('/reset_wish', '📩сбор пожеланий')
+ADMIN_COMMANDS = {'statistics': ('/statistics', '📈статистика'),
+                  'reset_wish': ('/reset_wish', '📩сбор пожеланий'),
+                  'post': ('/post', '💌пост'),
                   }
 
 MAIN_COMMANDS = {'start': ('/start', '☀️старт'),
@@ -75,7 +76,8 @@ ALL_COMMANDS = _get_all_commands()
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
     *[MAIN_COMMANDS['menu'][1], MAIN_COMMANDS['help'][1]])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[TEMP_COMMAND['end'][1]])
-CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[TEMP_COMMAND['yes'][1], TEMP_COMMAND['no'][1]])
+CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
+    *[TEMP_COMMAND['yes'][1], TEMP_COMMAND['no'][1]])
 
 MEDIA_PATH = 'Temp'
 
@@ -87,15 +89,26 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
             await message.answer("Внимаю создатель🤩")
-            await message.answer("Какой пост хотите опубликовать для всех пользователей?",
-                                 reply_markup=SUPPORT_KEYBOARD)
-            await AdminStates.enter_post.set()
+            await message.answer("Вы точно уверены, что настал тот час для речи👑❓",
+                                 reply_markup=CHOICE_KEYBOARD)
+            await AdminStates.switch_post.set()
         else:
             for text in bot_messages_ru['echo']:
                 await message.answer(text)
     else:
         for text in bot_messages_ru['state_if_exist']:
             await message.answer(text)
+
+
+@_DP.message_handler(state=AdminStates.switch_post)
+async def _switch_post(message: bot_types.Message, state: FSMContext):
+    if message.text == TEMP_COMMAND['yes'][1]:
+        await message.answer("Какой пост хотите опубликовать для всех пользователей?",
+                             reply_markup=SUPPORT_KEYBOARD)
+        await AdminStates.enter_post.set()
+    else:
+        await message.answer("Miss click, понимаю🤭", reply_markup=SUPPORT_KEYBOARD)
+        await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(state=AdminStates.enter_post)
