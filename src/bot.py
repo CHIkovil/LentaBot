@@ -1,17 +1,23 @@
-import logging
-
 from Support import *
 from Support import store
 from Support.messages import bot_messages_ru
+from Support.error_handler import ErrorHandler
 from Support.conf import *
 
 _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(APP_NAME, api_id=API_ID, api_hash=API_HASH)
-logging.basicConfig(level=logging.ERROR)
+
+
+# LOGGER
+logging.basicConfig(format='%(asctime)s, [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%m-%d %H:%M:%S',
+                    level=logging.ERROR)
 _LOGGER = logging.getLogger(APP_NAME)
+_LOGGER.addHandler(ErrorHandler(send_func=_BOT.send_message, error_channel_id=ERROR_CHANNEL_ID))
 
 
+# STATES
 class StartQuestionStates(StatesGroup):
     enter_initial_listen_channels = State()
 
@@ -37,7 +43,7 @@ DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen
 ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_channels.__str__()).replace('State',
 
                                                                                                        '', 1)
-
+# COMMANDS
 ADMIN_COMMANDS = {'statistics': ('/statistics', '📈статистика'),
                   'reset_wish': ('/reset_wish', '📩сбор пожеланий'),
                   'post': ('/post', '💌пост'),
