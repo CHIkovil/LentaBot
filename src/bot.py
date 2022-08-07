@@ -80,7 +80,7 @@ def _get_all_commands():
 ALL_COMMANDS = _get_all_commands()
 
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
-    *[MAIN_COMMANDS['menu'][1], MAIN_COMMANDS['help'][1]])
+    *[MAIN_COMMANDS['help'][1], MAIN_COMMANDS['menu'][1]])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[TEMP_COMMAND['end'][1]])
 CHOICE_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
     *[TEMP_COMMAND['yes'][1], TEMP_COMMAND['no'][1]])
@@ -591,30 +591,25 @@ async def _get_exist_channel_with_titles_to_client(channel_ids):
 
 # NOTIFICATION
 async def _send_message_channel_subscribers(post_text, channel_ids):
-    client = await store.STORAGE.get_client()
-    db = client[MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
-    channels_coll = db[LISTEN_CHANNELS_COLL_NAME]
+    result = await store.get_user_ids_with_channel_nicknames(channel_ids=channel_ids)
 
-    async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
-        async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
+    for channel_nickname, user_ids in result.items():
+        for user in user_ids:
             try:
-                await _BOT.send_message(chat_id=obj["user"],
+                await _BOT.send_message(chat_id=user,
                                         text=
-                                        f"К глубочайшему сожалению, канал {channel_obj['nickname']} "
+                                        f"К глубочайшему сожалению, канал {channel_nickname} "
                                         + post_text)
             except Unauthorized:
-                await store.stop_listen_for_user(obj['user'])
+                await store.stop_listen_for_user(user)
             except Exception as err:
                 _LOGGER.error(err)
 
 
 async def _notify_users_about_engineering_works(is_start):
-    client = await store.STORAGE.get_client()
-    db = client[MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    result = await store.get_all_users()
 
-    async for obj in users_coll.find({}):
+    for obj in result:
         try:
             if not is_start:
                 await _BOT.send_message(chat_id=obj["user"],
@@ -630,11 +625,9 @@ async def _notify_users_about_engineering_works(is_start):
 
 
 async def _send_and_pin_message_all_users(post_text):
-    client = await store.STORAGE.get_client()
-    db = client[MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    result = await store.get_all_users()
 
-    async for obj in users_coll.find({}):
+    for obj in result:
         try:
             message = await _BOT.send_message(chat_id=obj["user"],
                                               text=post_text)
@@ -672,13 +665,8 @@ async def _on_new_channel_message(event):
 async def _forward_new_message(event):
     listen_channel_id = abs(10 ** 12 + event.chat_id)
 
-    client = await store.STORAGE.get_client()
-    db = client[MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    listen_user_ids = await store.get_listen_user_ids_for_channel(listen_channel_id)
 
-    listen_user_ids = [obj['user'] async for obj in
-                       users_coll.find({"$and": [{"data.listen_channels": {'$in': [listen_channel_id]}},
-                                                 {"data.is_listen": True}]})]
     try:
         if await check_dublication_event(event):
             return

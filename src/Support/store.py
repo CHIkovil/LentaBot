@@ -1,8 +1,34 @@
-from aiogram.contrib.fsm_storage.mongo import MongoStorage
+from aiogram.contrib.fsm_storage.mongo import MongoStorage, DATA
 import re
 from . import conf
 
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
+USER_DATA = DATA
+
+
+async def get_listen_user_ids_for_channel(channel_id):
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    users_coll = db[USER_DATA]
+
+    return [obj['user'] async for obj in
+            users_coll.find({"$and": [{"data.listen_channels": {'$in': [channel_id]}},
+                                      {"data.is_listen": True}]})]
+
+
+async def get_user_ids_with_channel_nicknames(channel_ids):
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    users_coll = db[USER_DATA]
+    channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
+
+    result = {}
+    async for channel_obj in channels_coll.find({"id": {"$in": channel_ids}}):
+        user_ids = []
+        async for obj in users_coll.find({"data.listen_channels": {'$in': [channel_obj['id']]}}):
+            user_ids.append(obj["user"])
+        result[channel_obj['nickname']] = user_ids
+    return result
 
 
 async def drop_wish():
@@ -25,7 +51,8 @@ async def check_exist_channel_usernames_to_store(urls, user_id):
     db = client[conf.MONGO_DBNAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    listen_channel_nicknames = {await on_telegram_username(obj['nickname']): obj['id'] async for obj in channels_coll.find({"users": {'$in': [user_id]}})}
+    listen_channel_nicknames = {await on_telegram_username(obj['nickname']): obj['id'] async for obj in
+                                channels_coll.find({"users": {'$in': [user_id]}})}
     exist_usernames = list({await on_telegram_username(url) for url in urls} & set(listen_channel_nicknames.keys()))
 
     return {listen_channel_nicknames[username]: f'@{username}' for username in exist_usernames}
@@ -34,7 +61,7 @@ async def check_exist_channel_usernames_to_store(urls, user_id):
 async def get_all_listen_users():
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    users_coll = db[USER_DATA]
 
     return [obj async for obj in users_coll.find({"data.is_listen": True})]
 
@@ -42,7 +69,7 @@ async def get_all_listen_users():
 async def get_all_users():
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    users_coll = db[USER_DATA]
 
     return [obj async for obj in users_coll.find({})]
 
@@ -78,7 +105,7 @@ async def delete_everywhere_listen_channels_to_store(channel_ids):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
-    users_coll = db["aiogram_data"]
+    users_coll = db[USER_DATA]
 
     await channels_coll.delete_many({"id": {'$in': channel_ids}})
     await users_coll.update_many({}, {"$pull": {"data.listen_channels": {'$in': channel_ids}}})
@@ -102,7 +129,7 @@ async def delete_listen_channels_to_common_collection(channel_ids, user_id, db_n
 async def stop_listen_for_user(user_id):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    users_coll = db["aiogram_data"]
+    users_coll = db[USER_DATA]
 
     await users_coll.update_one({"user": user_id}, {"$set": {"data.is_listen": False}})
 
