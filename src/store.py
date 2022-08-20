@@ -1,6 +1,5 @@
-from aiogram.contrib.fsm_storage.mongo import MongoStorage, DATA
-import re
-from . import conf
+from src import *
+from src import conf
 
 STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 USER_DATA = DATA
