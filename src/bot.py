@@ -48,8 +48,8 @@ MEDIA_PATH = 'Temp'
 async def _on_post(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer("Внимаю создатель🤩")
-            await message.answer("Вы точно уверены, что настал тот час для речи👑❓",
+            await message.answer(messages.bot_messages_ru["admin_post"][0])
+            await message.answer(messages.bot_messages_ru["admin_post"][1],
                                  reply_markup=CHOICE_KEYBOARD)
             await states.AdminStates.switch_post.set()
         else:
@@ -63,23 +63,23 @@ async def _on_post(message: bot_types.Message, state: FSMContext):
 @_DP.message_handler(state=states.AdminStates.switch_post)
 async def _switch_post(message: bot_types.Message, state: FSMContext):
     if message.text == commands.TEMP_COMMAND['yes'][1]:
-        await message.answer("Какой пост хотите опубликовать для всех пользователей?",
+        await message.answer(messages.bot_messages_ru["admin_switch_post"][0],
                              reply_markup=SUPPORT_KEYBOARD)
         await states.AdminStates.enter_post.set()
     else:
-        await message.answer("Miss click, понимаю🤭", reply_markup=SUPPORT_KEYBOARD)
+        await message.answer(messages.bot_messages_ru["admin_switch_post"][1], reply_markup=SUPPORT_KEYBOARD)
         await state.reset_state(with_data=False)
 
 
 @_DP.message_handler(state=states.AdminStates.enter_post)
 async def _enter_post(message: bot_types.Message, state: FSMContext):
     if message.text not in commands.ALL_COMMANDS:
-        await message.answer("Опубликовал💌")
+        await message.answer(messages.bot_messages_ru["admin_enter_post"][0])
         await _send_and_pin_message_all_users(message.text)
         await state.reset_state(with_data=False)
     else:
-        await message.answer("Пока рано для команд создатель!")
-        await message.answer("Давай сначала сделаем публикацию😎")
+        for msg in messages.bot_messages_ru["admin_enter_post"][1:]:
+            await message.answer(msg)
 
 
 @_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['statistics']),
@@ -92,11 +92,11 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
             all_listen_channels_len = len(await store.get_all_listen_channel_ids())
             all_users_wishes = len(await store.get_all_wish_texts())
 
-            await message.answer("Общая статистика📋:\n\n" +
-                                 f'♦️ Пользователей 🙆‍‍‍ - {all_users_len}\n'
-                                 f'♦️ Лент запущено👂 - {all_listen_users}\n'
-                                 f'♦️ Каналов 🌍 - {all_listen_channels_len}\n'
-                                 f'♦️ Кол-во пожеланий💬 - {all_users_wishes}/{all_users_len}\n',
+            await message.answer(messages.bot_messages_ru["admin_statistics"][0] +
+                                 messages.bot_messages_ru["admin_statistics"][1] + f'{all_users_len}\n' +
+                                 messages.bot_messages_ru["admin_statistics"][2] + f'{all_listen_users}\n' +
+                                 messages.bot_messages_ru["admin_statistics"][3] + f'{all_listen_channels_len}\n' +
+                                 messages.bot_messages_ru["admin_statistics"][4] + f'{all_users_wishes}/{all_users_len}\n',
                                  reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in messages.bot_messages_ru['echo']:
@@ -111,7 +111,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer('Отправляю все пожелания пользователей📩', reply_markup=SUPPORT_KEYBOARD)
+            await message.answer(messages.bot_messages_ru["admin_reset_wish"][0],reply_markup=SUPPORT_KEYBOARD)
             texts = await store.get_all_wish_texts()
             loop = asyncio.get_event_loop()
             file_path = await loop.run_in_executor(None, _write_wishes_to_txt, texts)
