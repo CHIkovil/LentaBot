@@ -617,49 +617,57 @@ async def _forward_new_message(event):
             return
         message = await event.forward_to(MAIN_TAPE_CHANNEL_ID)
         if isinstance(message, list):
-            temp_folder = f'{event.grouped_id}'
-            file_paths = await _download_media(message, temp_folder)
-
-            media = bot_types.MediaGroup()
-            caption_message = [msg for msg in message if msg.text != '']
-            caption_text = ''
-            link_text = f'\n\nПереслано от https://t.me/{event.chat.username}/'
-            if caption_message:
-                link_text += f'{caption_message[0].forward.channel_post}'
-                caption_text += caption_message[0].text
-            else:
-                link_text += f'{event.messages[0].id}'
-
-            full_caption_text = caption_text + link_text
-            for index, path in enumerate(file_paths):
-                media.attach_photo(bot_types.InputFile(path), caption=full_caption_text if index == 0 else '')
-
-            for id in listen_user_ids:
-                try:
-                    await _BOT.send_media_group(chat_id=id, media=media)
-                except Unauthorized:
-                    await store.stop_listen_for_user(id)
-                except Exception as err:
-                    _LOGGER.error(err)
-
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, _delete_media_group, temp_folder)
+            await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
         else:
-            for id in listen_user_ids:
-                try:
-                    await _BOT.forward_message(chat_id=id,
-                                               from_chat_id=MAIN_TAPE_CHANNEL_ID,
-                                               message_id=message.id)
-                except Unauthorized:
-                    await store.stop_listen_for_user(id)
-                except Exception as err:
-                    _LOGGER.error(err)
+            await _on_bot_forward_message(message=message, user_ids=listen_user_ids)
     except AuthKeyError:
         await _send_message_channel_subscribers(messages.bot_messages_ru['channel_on_protection'], [listen_channel_id])
         await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
         await _reload_listener()
     except Exception as err:
         _LOGGER.error(err)
+
+
+async def _on_bot_forward_messages_group(event, message, user_ids):
+    temp_folder = f'{event.grouped_id}'
+    file_paths = await _download_media(message, temp_folder)
+
+    media = bot_types.MediaGroup()
+    caption_message = [msg for msg in message if msg.text != '']
+    caption_text = ''
+    link_text = f'\n\nПереслано от https://t.me/{event.chat.username}/'
+    if caption_message:
+        link_text += f'{caption_message[0].forward.channel_post}'
+        caption_text += caption_message[0].text
+    else:
+        link_text += f'{event.messages[0].id}'
+
+    full_caption_text = caption_text + link_text
+    for index, path in enumerate(file_paths):
+        media.attach_photo(bot_types.InputFile(path), caption=full_caption_text if index == 0 else '')
+
+    for id in user_ids:
+        try:
+            await _BOT.send_media_group(chat_id=id, media=media)
+        except Unauthorized:
+            await store.stop_listen_for_user(id)
+        except Exception as err:
+            _LOGGER.error(err)
+
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _delete_media_group, temp_folder)
+
+
+async def _on_bot_forward_message(message, user_ids):
+    for id in user_ids:
+        try:
+            await _BOT.forward_message(chat_id=id,
+                                       from_chat_id=MAIN_TAPE_CHANNEL_ID,
+                                       message_id=message.id)
+        except Unauthorized:
+            await store.stop_listen_for_user(id)
+        except Exception as err:
+            _LOGGER.error(err)
 
 
 async def _download_media(messages, temp_folder):
