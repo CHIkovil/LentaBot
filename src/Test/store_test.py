@@ -1,6 +1,6 @@
 import pytest
-from store import save_new_listen_channels_to_common_collection, STORAGE
-from . import conf
+from src.store import save_new_listen_channels_to_common_collection, STORAGE
+from src import conf
 
 _db_name = conf.MONGO_DBNAME + 'Test'
 _element_len = 4

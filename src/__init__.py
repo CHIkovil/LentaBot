@@ -18,4 +18,5 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.utils.callback_data import CallbackData
 from aiogram.utils.exceptions import ChatNotFound, Unauthorized
 from aiogram.dispatcher import FSMContext
+from aiogram.contrib.fsm_storage.mongo import MongoStorage, DATA
 
