@@ -274,11 +274,13 @@ async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext
             else:
                 await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
 
-            if not_exist_channel_ids:
-                await _send_message_channel_subscribers(messages.bot_messages_ru['channel_not_exist'], not_exist_channel_ids)
-                await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
         else:
             await message.answer(messages.bot_messages_ru['subscriptions'][1])
+
+        if not_exist_channel_ids:
+            await _send_message_channel_subscribers(messages.bot_messages_ru['channel_not_exist'],
+                                                    not_exist_channel_ids)
+            await store.delete_everywhere_listen_channels_to_store(not_exist_channel_ids)
     else:
         for text in messages.bot_messages_ru['state_if_exist']:
             await message.answer(text)
@@ -508,7 +510,6 @@ async def _check_bot_is_channel_admin(channel_id):
     except Exception as err:
         _LOGGER.error(err)
 
-
 # CLIENT
 async def _join_new_listen_channels_to_client(channel_ids):
     channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
@@ -526,8 +527,9 @@ async def _join_new_listen_channels_to_client(channel_ids):
 
 async def _get_exist_channel_with_titles_to_client(channel_ids):
     channel_ids_set = set(channel_ids)
+
     exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in
-                     _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set}
+                     _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set and dialog.entity.username is not None}
 
     not_exist_channel_ids = list(channel_ids_set - set(exist_channel.keys()))
 
