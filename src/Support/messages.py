@@ -1,4 +1,8 @@
 # ADMIN
+admin_not_commands_ru = (
+    "Пока рано для команд создатель!",
+    "Давай сначала сделаем публикацию😎",
+)
 
 admin_post_ru = (
     "Внимаю создатель🤩",
@@ -7,14 +11,12 @@ admin_post_ru = (
 )
 
 admin_switch_post_ru = (
-    "Какой пост хотите опубликовать для всех пользователей?",
+    "Какой пост хотите опубликовать для всех пользователей❓🆕",
     "Miss click, понимаю🤭",
 )
 
 admin_enter_post_ru = (
     "Опубликовал💌",
-    "Пока рано для команд создатель!",
-    "Давай сначала сделаем публикацию😎",
 )
 
 admin_statistics_ru = (
@@ -28,6 +30,41 @@ admin_statistics_ru = (
 admin_reset_wish_ru = (
     'Отправляю все пожелания пользователей📩',
 )
+
+admin_add_keyword_ru = (
+    'Мы внимаем👀',
+    'Жду новые ключевые слова для моего друга - рекламного фильтра📁'
+)
+
+admin_delete_keyword_ru = (
+    'Мы слушаем👂',
+    'Какие ключевые слова хотите удалить❓',
+    'Для быстрого удаления воспользуйся /keywords😉'
+)
+
+admin_keywords_ru = ((
+                         "Ключевые слова📂:\n",
+                     ),
+                     (
+                         "Ключевые слова📂:\n\n"
+                         "⚠️Пусто"
+                     ))
+
+admin_enter_add_keyword_ru = ((
+                                  "Добавил✅",
+                              ),
+                              (
+                                  "Такое слово уже есть",
+                                  "Давай другое😁"
+
+                              ))
+
+admin_enter_delete_keyword_ru = ((
+                                  "Удалил✅",
+                              ),
+                              (
+                                  "Такого ключового слова нет в моих списках🤔",
+                              ))
 
 # USER
 help_ru = (
@@ -159,7 +196,7 @@ enter_delete_listen_ru = ((
 )
 
 subscriptions_ru = ((
-                        "Твои подписки📋:\n",
+                        "Твои подписки📋:\n\n",
                     ),
                     (
                         "Твои подписки📋:\n\n"
@@ -226,9 +263,15 @@ bot_messages_ru = {
     'echo': echo_ru,
     'engineering_works': engineering_works_ru,
     'menu': menu_ru,
+    'admin_not_commands': admin_not_commands_ru,
     'admin_post': admin_post_ru,
     'admin_switch_post': admin_switch_post_ru,
     'admin_enter_post': admin_enter_post_ru,
     'admin_statistics': admin_statistics_ru,
     'admin_reset_wish': admin_reset_wish_ru,
+    'admin_add_keyword': admin_add_keyword_ru,
+    'admin_delete_keyword': admin_delete_keyword_ru,
+    'admin_keywords': admin_keywords_ru,
+    'admin_enter_add_keyword': admin_enter_add_keyword_ru,
+    'admin_enter_delete_keyword': admin_enter_delete_keyword_ru,
 }

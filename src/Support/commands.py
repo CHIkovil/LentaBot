@@ -7,7 +7,10 @@ def _get_all_commands():
     return set(result)
 
 
-ADMIN_COMMANDS = {'statistics': ('/statistics', '📈статистика'),
+ADMIN_COMMANDS = {'add_keyword': ('/add_keyword', '➕добавить ключ. слово'),
+                  'delete_keyword': ('/delete_keyword', '➖удалить ключ. слово'),
+                  'keywords': ('/keywords', '📂ключевые слова'),
+                  'statistics': ('/statistics', '📈статистика'),
                   'reset_wish': ('/reset_wish', '📩сбор пожеланий'),
                   'post': ('/post', '💌пост'),
                   }
@@ -29,6 +32,5 @@ TEMP_COMMAND = {'end': ('/end', '🔚Закончить'),
                 'yes': ('/уes', '👍Да'),
                 'no': ('/no', '👎Нет'),
                 }
-
 
 ALL_COMMANDS = _get_all_commands()

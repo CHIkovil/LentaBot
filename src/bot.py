@@ -8,7 +8,6 @@ _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(APP_NAME, api_id=API_ID, api_hash=API_HASH)
 
-
 # LOGGER
 logging.basicConfig(format='%(asctime)s, [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%m-%d %H:%M:%S',
@@ -78,7 +77,7 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
         await _send_and_pin_message_all_users(message.text)
         await state.reset_state(with_data=False)
     else:
-        for msg in messages.bot_messages_ru["admin_enter_post"][1:]:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
             await message.answer(msg)
 
 
@@ -96,7 +95,8 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
                                  messages.bot_messages_ru["admin_statistics"][1] + f'{all_users_len}\n' +
                                  messages.bot_messages_ru["admin_statistics"][2] + f'{all_listen_users}\n' +
                                  messages.bot_messages_ru["admin_statistics"][3] + f'{all_listen_channels_len}\n' +
-                                 messages.bot_messages_ru["admin_statistics"][4] + f'{all_users_wishes}/{all_users_len}\n',
+                                 messages.bot_messages_ru["admin_statistics"][
+                                     4] + f'{all_users_wishes}/{all_users_len}\n',
                                  reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in messages.bot_messages_ru['echo']:
@@ -111,7 +111,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer(messages.bot_messages_ru["admin_reset_wish"][0],reply_markup=SUPPORT_KEYBOARD)
+            await message.answer(messages.bot_messages_ru["admin_reset_wish"][0], reply_markup=SUPPORT_KEYBOARD)
             texts = await store.get_all_wish_texts()
             loop = asyncio.get_event_loop()
             file_path = await loop.run_in_executor(None, _write_wishes_to_txt, texts)
@@ -138,6 +138,109 @@ def _write_wishes_to_txt(texts):
 
 def _delete_wishes_txt(path):
     os.remove(path)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['keywords']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _get_keywords(message: bot_types.Message, state: FSMContext):
+    if message.from_user.id == ADMIN_ID:
+        keywords = await store.get_all_keywords()
+        if keywords:
+            state_name = await state.get_state()
+            table_text = messages.bot_messages_ru['admin_keywords'][0][0]
+            for word in keywords:
+                table_text += f"🔸 {word}\n"
+
+            if state_name == states.DELETE_KEYWORD_STATE_NAME or state_name == states.ADD_KEYWORD_STATE_NAME:
+                await message.answer(table_text)
+            else:
+                await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
+        else:
+            await message.answer(messages.bot_messages_ru['admin_keywords'][1])
+    else:
+        for text in messages.bot_messages_ru['echo']:
+            await message.answer(text)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['add_keyword']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _add_keywords(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer(messages.bot_messages_ru['admin_add_keyword'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_add_keyword'][1:]:
+                await message.answer(text)
+            await states.AdminStates.add_keyword.set()
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['delete_keyword']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _delete_keyword(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer(messages.bot_messages_ru['admin_delete_keyword'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_delete_keyword'][1:]:
+                await message.answer(text)
+            await states.AdminStates.delete_keyword.set()
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(state=states.AdminStates.add_keyword)
+async def _enter_add_keywords(message: bot_types.Message, state: FSMContext):
+    if message.text not in commands.ALL_COMMANDS:
+        if message.text in commands.TEMP_COMMAND['end']:
+            await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in messages.bot_messages_ru['end'][1:]:
+                await message.answer(text)
+            await state.reset_state(with_data=False)
+            return
+        result = await store.add_keyword(message.text.lower())
+        if result:
+            for text in messages.bot_messages_ru['admin_enter_add_keyword'][0]:
+                await message.answer(text)
+        else:
+            for text in messages.bot_messages_ru['admin_enter_add_keyword'][1]:
+                await message.answer(text)
+    else:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
+            await message.answer(msg)
+
+
+@_DP.message_handler(state=states.AdminStates.delete_keyword)
+async def _enter_delete_keywords(message: bot_types.Message, state: FSMContext):
+    if message.text not in commands.ALL_COMMANDS:
+        if message.text in commands.TEMP_COMMAND['end']:
+            await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in messages.bot_messages_ru['end'][1:]:
+                await message.answer(text)
+            await state.reset_state(with_data=False)
+            return
+        text = message.text
+        if text[0] == '/':
+            text = text[1:]
+        result = await store.delete_keyword(text)
+        if result:
+            for text in messages.bot_messages_ru['admin_enter_delete_keyword'][0]:
+                await message.answer(text)
+        else:
+            for text in messages.bot_messages_ru['admin_enter_delete_keyword'][1]:
+                await message.answer(text)
+
+        await _get_keywords(message=message, state=state)
+    else:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
+            await message.answer(msg)
 
 
 # USER
@@ -257,19 +360,20 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
-    if not state_name or state_name == states.DELETE_STATE_NAME or state_name == states.ADD_STATE_NAME:
+    if not state_name or state_name == states.DELETE_CHANNEL_STATE_NAME or state_name == states.ADD_CHANNEL_STATE_NAME:
         listen_channel_ids = (await state.get_data())['listen_channels']
         exist_channel, not_exist_channel_ids = await _get_exist_channel_with_titles_to_client(listen_channel_ids)
 
         if exist_channel:
-            table_text = f"{messages.bot_messages_ru['subscriptions'][0][0]}\n"
+            table_text = f"{messages.bot_messages_ru['subscriptions'][0][0]}"
 
             for username, title in list(exist_channel.values()):
-                if state_name == states.DELETE_STATE_NAME:
-                    table_text += f"🔸 /{username} - {title}\n"
+                if state_name == states.DELETE_CHANNEL_STATE_NAME:
+                    table_text += f"🔹 /{username} - {title}\n"
                 else:
-                    table_text += f"🔸 @{username} - {title}\n"
-            if state_name == states.DELETE_STATE_NAME or state_name == states.ADD_STATE_NAME:
+                    table_text += f"🔹 @{username} - {title}\n"
+
+            if state_name == states.DELETE_CHANNEL_STATE_NAME or state_name == states.ADD_CHANNEL_STATE_NAME:
                 await message.answer(table_text)
             else:
                 await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
@@ -389,7 +493,8 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
             if not data['listen_channels']:
                 data['is_listen'] = False
-                await message.answer(messages.bot_messages_ru['enter_delete_listen'][0][0], reply_markup=SUPPORT_KEYBOARD)
+                await message.answer(messages.bot_messages_ru['enter_delete_listen'][0][0],
+                                     reply_markup=SUPPORT_KEYBOARD)
                 for text in messages.bot_messages_ru['enter_delete_listen'][0][1:]:
                     await message.answer(text)
                 for text in messages.bot_messages_ru['stop_tape'][0]:
@@ -510,6 +615,7 @@ async def _check_bot_is_channel_admin(channel_id):
     except Exception as err:
         _LOGGER.error(err)
 
+
 # CLIENT
 async def _join_new_listen_channels_to_client(channel_ids):
     channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
@@ -529,7 +635,8 @@ async def _get_exist_channel_with_titles_to_client(channel_ids):
     channel_ids_set = set(channel_ids)
 
     exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in
-                     _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set and dialog.entity.username is not None}
+                     _CLIENT.iter_dialogs(archived=True) if
+                     dialog.entity.id in channel_ids_set and dialog.entity.username is not None}
 
     not_exist_channel_ids = list(channel_ids_set - set(exist_channel.keys()))
 
@@ -564,7 +671,8 @@ async def _notify_users_about_engineering_works(is_start):
                                         reply_markup=bot_types.ReplyKeyboardRemove())
             else:
                 await _BOT.send_message(chat_id=obj["user"],
-                                        text=messages.bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
+                                        text=messages.bot_messages_ru['engineering_works'][1],
+                                        reply_markup=SUPPORT_KEYBOARD)
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
         except Exception as err:

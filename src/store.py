@@ -5,6 +5,46 @@ STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 USER_DATA = DATA
 
 
+async def delete_keyword(keyword):
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+
+    exist_keywords = set(await get_all_keywords())
+
+    if keyword in exist_keywords:
+        await keywords_coll.delete_one({"word": {'$in': [keyword]}})
+        return True
+    else:
+        return False
+
+
+async def add_keyword(keyword):
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+
+    exist_keywords = set(await get_all_keywords())
+
+    if keyword not in exist_keywords:
+        data = {'word': keyword}
+        await keywords_coll.insert_one(data)
+        return True
+    else:
+        return False
+
+
+async def get_all_keywords():
+    client = await STORAGE.get_client()
+    db = client[conf.MONGO_DBNAME]
+    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+
+    if conf.KEYWORDS_COLL_NAME in set(await db.list_collection_names()):
+        return [obj['word'] async for obj in keywords_coll.find({})]
+    else:
+        return []
+
+
 async def get_listen_user_ids_for_channel(channel_id):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
@@ -42,7 +82,10 @@ async def get_all_wish_texts():
     db = client[conf.MONGO_DBNAME]
     wish_coll = db[conf.WISH_COLL_NAME]
 
-    return [obj['text'] + '\n\n\n' async for obj in wish_coll.find({})]
+    if conf.KEYWORDS_COLL_NAME in set(await db.list_collection_names()):
+        return [obj['text'] + '\n\n\n' async for obj in wish_coll.find({})]
+    else:
+        return None
 
 
 async def check_exist_channel_usernames_to_store(urls, user_id):
@@ -78,7 +121,10 @@ async def get_all_listen_channel_ids():
     db = client[conf.MONGO_DBNAME]
     channels_coll = db[conf.LISTEN_CHANNELS_COLL_NAME]
 
-    return [obj['id'] async for obj in channels_coll.find({})]
+    if conf.LISTEN_CHANNELS_COLL_NAME in set(await db.list_collection_names()):
+        return [obj['id'] async for obj in channels_coll.find({})]
+    else:
+        return None
 
 
 async def save_new_listen_channels_to_common_collection(channels, user_id, db_name=conf.MONGO_DBNAME):
