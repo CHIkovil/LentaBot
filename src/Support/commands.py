@@ -7,9 +7,9 @@ def _get_all_commands():
     return set(result)
 
 
-ADMIN_COMMANDS = {'add_keyword': ('/add_keyword', '➕добавить ключ. слово'),
-                  'delete_keyword': ('/delete_keyword', '➖удалить ключ. слово'),
-                  'keywords': ('/keywords', '📂ключевые слова'),
+ADMIN_COMMANDS = {'add_spam_word': ('/add_spam_word', '➕добавить спам слово'),
+                  'delete_spam_word': ('/delete_spam_word', '➖удалить спам слово'),
+                  'spam_words': ('/spam_words', '📂спам слова'),
                   'statistics': ('/statistics', '📈статистика'),
                   'reset_wish': ('/reset_wish', '📩сбор пожеланий'),
                   'post': ('/post', '💌пост'),

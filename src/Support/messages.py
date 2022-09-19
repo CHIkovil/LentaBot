@@ -31,26 +31,26 @@ admin_reset_wish_ru = (
     'Отправляю все пожелания пользователей📩',
 )
 
-admin_add_keyword_ru = (
+admin_add_spam_word_ru = (
     'Мы внимаем👀',
-    'Жду новые ключевые слова для моего друга - рекламного фильтра📁'
+    'Жду новые спам слова для моего друга - рекламного фильтра📁'
 )
 
-admin_delete_keyword_ru = (
+admin_delete_spam_word_ru = (
     'Мы слушаем👂',
-    'Какие ключевые слова хотите удалить❓',
-    'Для быстрого удаления воспользуйся /keywords😉'
+    'Какие спам слова хотите удалить❓',
+    'Для быстрого удаления воспользуйся /spam_words😉'
 )
 
-admin_keywords_ru = ((
-                         "Ключевые слова📂:\n",
+admin_spam_words_ru = ((
+                         "Спам слова📂:\n",
                      ),
                      (
-                         "Ключевые слова📂:\n\n"
+                         "Спам слова📂:\n\n"
                          "⚠️Пусто"
                      ))
 
-admin_enter_add_keyword_ru = ((
+admin_enter_add_spam_word_ru = ((
                                   "Добавил✅",
                               ),
                               (
@@ -59,11 +59,11 @@ admin_enter_add_keyword_ru = ((
 
                               ))
 
-admin_enter_delete_keyword_ru = ((
+admin_enter_delete_spam_word_ru = ((
                                   "Удалил✅",
                               ),
                               (
-                                  "Такого ключового слова нет в моих списках🤔",
+                                  "Такого спам слова нет в моих списках🤔",
                               ))
 
 # USER
@@ -269,9 +269,9 @@ bot_messages_ru = {
     'admin_enter_post': admin_enter_post_ru,
     'admin_statistics': admin_statistics_ru,
     'admin_reset_wish': admin_reset_wish_ru,
-    'admin_add_keyword': admin_add_keyword_ru,
-    'admin_delete_keyword': admin_delete_keyword_ru,
-    'admin_keywords': admin_keywords_ru,
-    'admin_enter_add_keyword': admin_enter_add_keyword_ru,
-    'admin_enter_delete_keyword': admin_enter_delete_keyword_ru,
+    'admin_add_spam_word': admin_add_spam_word_ru,
+    'admin_delete_spam_word': admin_delete_spam_word_ru,
+    'admin_spam_words': admin_spam_words_ru,
+    'admin_enter_add_spam_word': admin_enter_add_spam_word_ru,
+    'admin_enter_delete_spam_word': admin_enter_delete_spam_word_ru,
 }

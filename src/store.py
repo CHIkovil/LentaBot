@@ -5,42 +5,42 @@ STORAGE = MongoStorage(db_name=conf.MONGO_DBNAME, uri=conf.MONGO_URL)
 USER_DATA = DATA
 
 
-async def delete_keyword(keyword):
+async def delete_spam_word(keyword):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+    spam_words_coll = db[conf.SPAM_WORDS_COLL_NAME]
 
-    exist_keywords = set(await get_all_keywords())
+    exist_keywords = set(await get_all_spam_words())
 
     if keyword in exist_keywords:
-        await keywords_coll.delete_one({"word": {'$in': [keyword]}})
+        await spam_words_coll.delete_one({"word": {'$in': [keyword]}})
         return True
     else:
         return False
 
 
-async def add_keyword(keyword):
+async def add_spam_word(keyword):
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+    spam_words_coll = db[conf.SPAM_WORDS_COLL_NAME]
 
-    exist_keywords = set(await get_all_keywords())
+    exist_keywords = set(await get_all_spam_words())
 
     if keyword not in exist_keywords:
         data = {'word': keyword}
-        await keywords_coll.insert_one(data)
+        await spam_words_coll.insert_one(data)
         return True
     else:
         return False
 
 
-async def get_all_keywords():
+async def get_all_spam_words():
     client = await STORAGE.get_client()
     db = client[conf.MONGO_DBNAME]
-    keywords_coll = db[conf.KEYWORDS_COLL_NAME]
+    spam_words_coll = db[conf.SPAM_WORDS_COLL_NAME]
 
-    if conf.KEYWORDS_COLL_NAME in set(await db.list_collection_names()):
-        return [obj['word'] async for obj in keywords_coll.find({})]
+    if conf.SPAM_WORDS_COLL_NAME in set(await db.list_collection_names()):
+        return [obj['word'] async for obj in spam_words_coll.find({})]
     else:
         return []
 
@@ -82,10 +82,10 @@ async def get_all_wish_texts():
     db = client[conf.MONGO_DBNAME]
     wish_coll = db[conf.WISH_COLL_NAME]
 
-    if conf.KEYWORDS_COLL_NAME in set(await db.list_collection_names()):
+    if conf.WISH_COLL_NAME in set(await db.list_collection_names()):
         return [obj['text'] + '\n\n\n' async for obj in wish_coll.find({})]
     else:
-        return None
+        return []
 
 
 async def check_exist_channel_usernames_to_store(urls, user_id):

@@ -140,37 +140,37 @@ def _delete_wishes_txt(path):
     os.remove(path)
 
 
-@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['keywords']),
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['spam_words']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
-async def _get_keywords(message: bot_types.Message, state: FSMContext):
+async def _get_all_spam_words(message: bot_types.Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
-        keywords = await store.get_all_keywords()
+        keywords = await store.get_all_spam_words()
         if keywords:
             state_name = await state.get_state()
-            table_text = messages.bot_messages_ru['admin_keywords'][0][0]
+            table_text = messages.bot_messages_ru['admin_spam_words'][0][0]
             for word in keywords:
                 table_text += f"🔸 {word}\n"
 
-            if state_name == states.DELETE_KEYWORD_STATE_NAME or state_name == states.ADD_KEYWORD_STATE_NAME:
+            if state_name == states.DELETE_SPAM_WORD_STATE_NAME or state_name == states.ADD_SPAM_WORD_STATE_NAME:
                 await message.answer(table_text)
             else:
                 await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
         else:
-            await message.answer(messages.bot_messages_ru['admin_keywords'][1])
+            await message.answer(messages.bot_messages_ru['admin_spam_words'][1])
     else:
         for text in messages.bot_messages_ru['echo']:
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['add_keyword']),
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['add_spam_word']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
-async def _add_keywords(message: bot_types.Message, state: FSMContext):
+async def _add_spam_word(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer(messages.bot_messages_ru['admin_add_keyword'][0], reply_markup=END_KEYBOARD)
-            for text in messages.bot_messages_ru['admin_add_keyword'][1:]:
+            await message.answer(messages.bot_messages_ru['admin_add_spam_word'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_add_spam_word'][1:]:
                 await message.answer(text)
-            await states.AdminStates.add_keyword.set()
+            await states.AdminStates.add_spam_word.set()
         else:
             for text in messages.bot_messages_ru['echo']:
                 await message.answer(text)
@@ -179,15 +179,15 @@ async def _add_keywords(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['delete_keyword']),
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['delete_spam_word']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
-async def _delete_keyword(message: bot_types.Message, state: FSMContext):
+async def _delete_spam_word(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer(messages.bot_messages_ru['admin_delete_keyword'][0], reply_markup=END_KEYBOARD)
-            for text in messages.bot_messages_ru['admin_delete_keyword'][1:]:
+            await message.answer(messages.bot_messages_ru['admin_delete_spam_word'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_delete_spam_word'][1:]:
                 await message.answer(text)
-            await states.AdminStates.delete_keyword.set()
+            await states.AdminStates.delete_spam_word.set()
         else:
             for text in messages.bot_messages_ru['echo']:
                 await message.answer(text)
@@ -196,8 +196,8 @@ async def _delete_keyword(message: bot_types.Message, state: FSMContext):
             await message.answer(text)
 
 
-@_DP.message_handler(state=states.AdminStates.add_keyword)
-async def _enter_add_keywords(message: bot_types.Message, state: FSMContext):
+@_DP.message_handler(state=states.AdminStates.add_spam_word)
+async def _enter_add_spam_word(message: bot_types.Message, state: FSMContext):
     if message.text not in commands.ALL_COMMANDS:
         if message.text in commands.TEMP_COMMAND['end']:
             await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
@@ -205,20 +205,20 @@ async def _enter_add_keywords(message: bot_types.Message, state: FSMContext):
                 await message.answer(text)
             await state.reset_state(with_data=False)
             return
-        result = await store.add_keyword(message.text.lower())
+        result = await store.add_spam_word(message.text.lower())
         if result:
-            for text in messages.bot_messages_ru['admin_enter_add_keyword'][0]:
+            for text in messages.bot_messages_ru['admin_enter_add_spam_word'][0]:
                 await message.answer(text)
         else:
-            for text in messages.bot_messages_ru['admin_enter_add_keyword'][1]:
+            for text in messages.bot_messages_ru['admin_enter_add_spam_word'][1]:
                 await message.answer(text)
     else:
         for msg in messages.bot_messages_ru["admin_not_commands"]:
             await message.answer(msg)
 
 
-@_DP.message_handler(state=states.AdminStates.delete_keyword)
-async def _enter_delete_keywords(message: bot_types.Message, state: FSMContext):
+@_DP.message_handler(state=states.AdminStates.delete_spam_word)
+async def _enter_delete_spam_word(message: bot_types.Message, state: FSMContext):
     if message.text not in commands.ALL_COMMANDS:
         if message.text in commands.TEMP_COMMAND['end']:
             await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
@@ -229,15 +229,15 @@ async def _enter_delete_keywords(message: bot_types.Message, state: FSMContext):
         text = message.text
         if text[0] == '/':
             text = text[1:]
-        result = await store.delete_keyword(text)
+        result = await store.delete_spam_word(text)
         if result:
-            for text in messages.bot_messages_ru['admin_enter_delete_keyword'][0]:
+            for text in messages.bot_messages_ru['admin_enter_delete_spam_word'][0]:
                 await message.answer(text)
         else:
-            for text in messages.bot_messages_ru['admin_enter_delete_keyword'][1]:
+            for text in messages.bot_messages_ru['admin_enter_delete_spam_word'][1]:
                 await message.answer(text)
 
-        await _get_keywords(message=message, state=state)
+        await _get_all_spam_words(message=message, state=state)
     else:
         for msg in messages.bot_messages_ru["admin_not_commands"]:
             await message.answer(msg)
@@ -727,9 +727,22 @@ async def _forward_new_message(event):
             return
         message = await event.forward_to(MAIN_TAPE_CHANNEL_ID)
         if isinstance(message, list):
-            await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
+            texts = [msg.text for msg in message if msg.text != '']
+            if texts:
+                is_spam = await _check_text_is_spam(text=texts[0])
+                if is_spam:
+                    return
+                else:
+                    await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
+            else:
+                await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
         else:
-            await _on_bot_forward_message(message=message, user_ids=listen_user_ids)
+            text = message.text
+            is_spam = await _check_text_is_spam(text)
+            if is_spam:
+                return
+            else:
+                await _on_bot_forward_message(message=message, user_ids=listen_user_ids)
     except AuthKeyError:
         await _send_message_channel_subscribers(messages.bot_messages_ru['channel_on_protection'], [listen_channel_id])
         await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
@@ -796,7 +809,7 @@ def _delete_media_group(temp_folder):
 
 async def check_dublication_event(event):
     messages = {message.forward.channel_post: message.grouped_id async for message in
-                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25) if message.forward}
+                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=50) if message.forward}
     if event.grouped_id:
         if event.grouped_id not in set(messages.values()):
             return False
@@ -805,6 +818,15 @@ async def check_dublication_event(event):
             return False
 
     return True
+
+
+async def _check_text_is_spam(text):
+    text_words = set(text.lower().split(' '))
+    spam_words = set(await store.get_all_spam_words())
+    if text_words & spam_words:
+        return True
+    else:
+        return False
 
 
 def run():
