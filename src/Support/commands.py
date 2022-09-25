@@ -18,6 +18,7 @@ ADMIN_COMMANDS = {'add_spam_word': ('/add_spam_word', '➕добавить сп�
 MAIN_COMMANDS = {'start': ('/start', '☀️старт'),
                  'menu': ('/menu', '⌨️меню'),
                  'help': ('/help', '🙏помощь'),
+                 'admin_panel': ('/admin_panel', '👽админ панель')
                  }
 
 MENU_COMMANDS = {'on': ('/on', '🚀вкл. ленту'),

@@ -1,4 +1,8 @@
 # ADMIN
+admin_panel_ru = (
+    "Мы есть🫵"
+)
+
 admin_not_commands_ru = (
     "Пока рано для команд создатель!",
     "Давай сначала сделаем публикацию😎",
@@ -263,6 +267,7 @@ bot_messages_ru = {
     'echo': echo_ru,
     'engineering_works': engineering_works_ru,
     'menu': menu_ru,
+    'admin_panel': admin_panel_ru,
     'admin_not_commands': admin_not_commands_ru,
     'admin_post': admin_post_ru,
     'admin_switch_post': admin_switch_post_ru,

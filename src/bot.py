@@ -17,15 +17,29 @@ _LOGGER.addHandler(ErrorHandler(send_func=_BOT.send_message, error_channel_id=ER
 
 
 # KEYBOARD
-def _get_menu_keyboard(is_admin):
+def _get_button_rows(buttons):
     func = lambda A, n=2: [A[i:i + n] for i in range(0, len(A), n)]
+    return func(buttons)
 
+
+def _get_menu_keyboard(is_admin):
     keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = [cmd[1] for cmd in commands.MENU_COMMANDS.values()]
     if is_admin:
-        buttons += [cmd[1] for cmd in commands.ADMIN_COMMANDS.values()]
+        buttons += [commands.MAIN_COMMANDS['admin_panel'][1]]
 
-    buttons_rows = func(buttons)
+    buttons_rows = _get_button_rows(buttons)
+    for row in buttons_rows:
+        keyboard.row(*row)
+
+    return keyboard
+
+
+def _get_admin_menu_keyboard():
+    keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+    buttons = [cmd[1] for cmd in commands.ADMIN_COMMANDS.values()]
+
+    buttons_rows = _get_button_rows(buttons)
     for row in buttons_rows:
         keyboard.row(*row)
 
@@ -42,6 +56,21 @@ MEDIA_PATH = 'Temp'
 
 
 # ADMIN
+@_DP.message_handler(filters.Text(equals=commands.MAIN_COMMANDS['admin_panel']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _on_admin_panel(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            admin_keyboard = _get_admin_menu_keyboard()
+            await message.answer(messages.bot_messages_ru['admin_panel'], reply_markup=admin_keyboard)
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
 @_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['post']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
