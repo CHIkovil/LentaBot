@@ -8,7 +8,6 @@ _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(APP_NAME, api_id=API_ID, api_hash=API_HASH)
 
-
 # LOGGER
 logging.basicConfig(format='%(asctime)s, [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%m-%d %H:%M:%S',
@@ -18,15 +17,29 @@ _LOGGER.addHandler(ErrorHandler(send_func=_BOT.send_message, error_channel_id=ER
 
 
 # KEYBOARD
-def _get_menu_keyboard(is_admin):
+def _get_button_rows(buttons):
     func = lambda A, n=2: [A[i:i + n] for i in range(0, len(A), n)]
+    return func(buttons)
 
+
+def _get_menu_keyboard(is_admin):
     keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = [cmd[1] for cmd in commands.MENU_COMMANDS.values()]
     if is_admin:
-        buttons += [cmd[1] for cmd in commands.ADMIN_COMMANDS.values()]
+        buttons += [commands.MAIN_COMMANDS['admin_panel'][1]]
 
-    buttons_rows = func(buttons)
+    buttons_rows = _get_button_rows(buttons)
+    for row in buttons_rows:
+        keyboard.row(*row)
+
+    return keyboard
+
+
+def _get_admin_menu_keyboard():
+    keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
+    buttons = [cmd[1] for cmd in commands.ADMIN_COMMANDS.values()]
+
+    buttons_rows = _get_button_rows(buttons)
     for row in buttons_rows:
         keyboard.row(*row)
 
@@ -43,6 +56,21 @@ MEDIA_PATH = 'Temp'
 
 
 # ADMIN
+@_DP.message_handler(filters.Text(equals=commands.MAIN_COMMANDS['admin_panel']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _on_admin_panel(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            admin_keyboard = _get_admin_menu_keyboard()
+            await message.answer(messages.bot_messages_ru['admin_panel'], reply_markup=admin_keyboard)
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
 @_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['post']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_post(message: bot_types.Message, state: FSMContext):
@@ -78,7 +106,7 @@ async def _enter_post(message: bot_types.Message, state: FSMContext):
         await _send_and_pin_message_all_users(message.text)
         await state.reset_state(with_data=False)
     else:
-        for msg in messages.bot_messages_ru["admin_enter_post"][1:]:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
             await message.answer(msg)
 
 
@@ -96,7 +124,8 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
                                  messages.bot_messages_ru["admin_statistics"][1] + f'{all_users_len}\n' +
                                  messages.bot_messages_ru["admin_statistics"][2] + f'{all_listen_users}\n' +
                                  messages.bot_messages_ru["admin_statistics"][3] + f'{all_listen_channels_len}\n' +
-                                 messages.bot_messages_ru["admin_statistics"][4] + f'{all_users_wishes}/{all_users_len}\n',
+                                 messages.bot_messages_ru["admin_statistics"][
+                                     4] + f'{all_users_wishes}/{all_users_len}\n',
                                  reply_markup=SUPPORT_KEYBOARD)
         else:
             for text in messages.bot_messages_ru['echo']:
@@ -111,7 +140,7 @@ async def _get_statistics(message: bot_types.Message, state: FSMContext):
 async def _reset_all_wishes(message: bot_types.Message, state: FSMContext):
     if not (await state.get_state()):
         if message.from_user.id == ADMIN_ID:
-            await message.answer(messages.bot_messages_ru["admin_reset_wish"][0],reply_markup=SUPPORT_KEYBOARD)
+            await message.answer(messages.bot_messages_ru["admin_reset_wish"][0], reply_markup=SUPPORT_KEYBOARD)
             texts = await store.get_all_wish_texts()
             loop = asyncio.get_event_loop()
             file_path = await loop.run_in_executor(None, _write_wishes_to_txt, texts)
@@ -138,6 +167,109 @@ def _write_wishes_to_txt(texts):
 
 def _delete_wishes_txt(path):
     os.remove(path)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['spam_words']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _get_all_spam_words(message: bot_types.Message, state: FSMContext):
+    if message.from_user.id == ADMIN_ID:
+        keywords = await store.get_all_spam_words()
+        if keywords:
+            state_name = await state.get_state()
+            table_text = messages.bot_messages_ru['admin_spam_words'][0][0]
+            for word in keywords:
+                table_text += f"🔸 {word}\n"
+
+            if state_name == states.DELETE_SPAM_WORD_STATE_NAME or state_name == states.ADD_SPAM_WORD_STATE_NAME:
+                await message.answer(table_text)
+            else:
+                await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
+        else:
+            await message.answer(messages.bot_messages_ru['admin_spam_words'][1])
+    else:
+        for text in messages.bot_messages_ru['echo']:
+            await message.answer(text)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['add_spam_word']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _add_spam_word(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer(messages.bot_messages_ru['admin_add_spam_word'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_add_spam_word'][1:]:
+                await message.answer(text)
+            await states.AdminStates.add_spam_word.set()
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(filters.Text(equals=commands.ADMIN_COMMANDS['delete_spam_word']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _delete_spam_word(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        if message.from_user.id == ADMIN_ID:
+            await message.answer(messages.bot_messages_ru['admin_delete_spam_word'][0], reply_markup=END_KEYBOARD)
+            for text in messages.bot_messages_ru['admin_delete_spam_word'][1:]:
+                await message.answer(text)
+            await states.AdminStates.delete_spam_word.set()
+        else:
+            for text in messages.bot_messages_ru['echo']:
+                await message.answer(text)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(state=states.AdminStates.add_spam_word)
+async def _enter_add_spam_word(message: bot_types.Message, state: FSMContext):
+    if message.text not in commands.ALL_COMMANDS:
+        if message.text in commands.TEMP_COMMAND['end']:
+            await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in messages.bot_messages_ru['end'][1:]:
+                await message.answer(text)
+            await state.reset_state(with_data=False)
+            return
+        result = await store.add_spam_word(message.text.lower())
+        if result:
+            for text in messages.bot_messages_ru['admin_enter_add_spam_word'][0]:
+                await message.answer(text)
+        else:
+            for text in messages.bot_messages_ru['admin_enter_add_spam_word'][1]:
+                await message.answer(text)
+    else:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
+            await message.answer(msg)
+
+
+@_DP.message_handler(state=states.AdminStates.delete_spam_word)
+async def _enter_delete_spam_word(message: bot_types.Message, state: FSMContext):
+    if message.text not in commands.ALL_COMMANDS:
+        if message.text in commands.TEMP_COMMAND['end']:
+            await message.answer(messages.bot_messages_ru['end'][0], reply_markup=SUPPORT_KEYBOARD)
+            for text in messages.bot_messages_ru['end'][1:]:
+                await message.answer(text)
+            await state.reset_state(with_data=False)
+            return
+        text = message.text
+        if text[0] == '/':
+            text = text[1:]
+        result = await store.delete_spam_word(text)
+        if result:
+            for text in messages.bot_messages_ru['admin_enter_delete_spam_word'][0]:
+                await message.answer(text)
+        else:
+            for text in messages.bot_messages_ru['admin_enter_delete_spam_word'][1]:
+                await message.answer(text)
+
+        await _get_all_spam_words(message=message, state=state)
+    else:
+        for msg in messages.bot_messages_ru["admin_not_commands"]:
+            await message.answer(msg)
 
 
 # USER
@@ -257,19 +389,20 @@ async def _on_help(message: bot_types.Message, state: FSMContext):
 async def _get_subscriptions_table(message: bot_types.Message, state: FSMContext):
     state_name = await state.get_state()
 
-    if not state_name or state_name == states.DELETE_STATE_NAME or state_name == states.ADD_STATE_NAME:
+    if not state_name or state_name == states.DELETE_CHANNEL_STATE_NAME or state_name == states.ADD_CHANNEL_STATE_NAME:
         listen_channel_ids = (await state.get_data())['listen_channels']
         exist_channel, not_exist_channel_ids = await _get_exist_channel_with_titles_to_client(listen_channel_ids)
 
         if exist_channel:
-            table_text = f"{messages.bot_messages_ru['subscriptions'][0][0]}\n"
+            table_text = f"{messages.bot_messages_ru['subscriptions'][0][0]}"
 
             for username, title in list(exist_channel.values()):
-                if state_name == states.DELETE_STATE_NAME:
-                    table_text += f"🔸 /{username} - {title}\n"
+                if state_name == states.DELETE_CHANNEL_STATE_NAME:
+                    table_text += f"🔹 /{username} - {title}\n"
                 else:
-                    table_text += f"🔸 @{username} - {title}\n"
-            if state_name == states.DELETE_STATE_NAME or state_name == states.ADD_STATE_NAME:
+                    table_text += f"🔹 @{username} - {title}\n"
+
+            if state_name == states.DELETE_CHANNEL_STATE_NAME or state_name == states.ADD_CHANNEL_STATE_NAME:
                 await message.answer(table_text)
             else:
                 await message.answer(table_text, reply_markup=SUPPORT_KEYBOARD)
@@ -389,7 +522,8 @@ async def _enter_delete_listen_channel(message: bot_types.Message, state: FSMCon
 
             if not data['listen_channels']:
                 data['is_listen'] = False
-                await message.answer(messages.bot_messages_ru['enter_delete_listen'][0][0], reply_markup=SUPPORT_KEYBOARD)
+                await message.answer(messages.bot_messages_ru['enter_delete_listen'][0][0],
+                                     reply_markup=SUPPORT_KEYBOARD)
                 for text in messages.bot_messages_ru['enter_delete_listen'][0][1:]:
                     await message.answer(text)
                 for text in messages.bot_messages_ru['stop_tape'][0]:
@@ -510,6 +644,7 @@ async def _check_bot_is_channel_admin(channel_id):
     except Exception as err:
         _LOGGER.error(err)
 
+
 # CLIENT
 async def _join_new_listen_channels_to_client(channel_ids):
     channel_dialog_ids = {dialog.entity.id async for dialog in _CLIENT.iter_dialogs(archived=True) if dialog.is_channel}
@@ -529,7 +664,8 @@ async def _get_exist_channel_with_titles_to_client(channel_ids):
     channel_ids_set = set(channel_ids)
 
     exist_channel = {dialog.entity.id: (dialog.entity.username, dialog.entity.title) async for dialog in
-                     _CLIENT.iter_dialogs(archived=True) if dialog.entity.id in channel_ids_set and dialog.entity.username is not None}
+                     _CLIENT.iter_dialogs(archived=True) if
+                     dialog.entity.id in channel_ids_set and dialog.entity.username is not None}
 
     not_exist_channel_ids = list(channel_ids_set - set(exist_channel.keys()))
 
@@ -564,7 +700,8 @@ async def _notify_users_about_engineering_works(is_start):
                                         reply_markup=bot_types.ReplyKeyboardRemove())
             else:
                 await _BOT.send_message(chat_id=obj["user"],
-                                        text=messages.bot_messages_ru['engineering_works'][1], reply_markup=SUPPORT_KEYBOARD)
+                                        text=messages.bot_messages_ru['engineering_works'][1],
+                                        reply_markup=SUPPORT_KEYBOARD)
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
         except Exception as err:
@@ -619,9 +756,22 @@ async def _forward_new_message(event):
             return
         message = await event.forward_to(MAIN_TAPE_CHANNEL_ID)
         if isinstance(message, list):
-            await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
+            texts = [msg.text for msg in message if msg.text != '']
+            if texts:
+                is_spam = await _check_text_is_spam(text=texts[0])
+                if is_spam:
+                    return
+                else:
+                    await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
+            else:
+                await _on_bot_forward_messages_group(event, message=message, user_ids=listen_user_ids)
         else:
-            await _on_bot_forward_message(message=message, user_ids=listen_user_ids)
+            text = message.text
+            is_spam = await _check_text_is_spam(text)
+            if is_spam:
+                return
+            else:
+                await _on_bot_forward_message(message=message, user_ids=listen_user_ids)
     except AuthKeyError:
         await _send_message_channel_subscribers(messages.bot_messages_ru['channel_on_protection'], [listen_channel_id])
         await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
@@ -688,7 +838,7 @@ def _delete_media_group(temp_folder):
 
 async def check_dublication_event(event):
     messages = {message.forward.channel_post: message.grouped_id async for message in
-                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=25) if message.forward}
+                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=50) if message.forward}
     if event.grouped_id:
         if event.grouped_id not in set(messages.values()):
             return False
@@ -697,6 +847,15 @@ async def check_dublication_event(event):
             return False
 
     return True
+
+
+async def _check_text_is_spam(text):
+    text_words = set(text.lower().split(' '))
+    spam_words = set(await store.get_all_spam_words())
+    if text_words & spam_words:
+        return True
+    else:
+        return False
 
 
 def run():

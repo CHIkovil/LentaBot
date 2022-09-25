@@ -18,11 +18,21 @@ class SupportStates(StatesGroup):
 class AdminStates(StatesGroup):
     switch_post = State()
     enter_post = State()
+    add_spam_word = State()
+    delete_spam_word = State()
 
 
-DELETE_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
+DELETE_CHANNEL_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_delete_listen_channel.__str__()).replace('State',
 
                                                                                                             '', 1)
-ADD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_channels.__str__()).replace('State',
+ADD_CHANNEL_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', UpdateStates.enter_add_listen_channels.__str__()).replace('State',
+
+                                                                                                       '', 1)
+
+ADD_SPAM_WORD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', AdminStates.add_spam_word.__str__()).replace('State',
+
+                                                                                                       '', 1)
+
+DELETE_SPAM_WORD_STATE_NAME = re.sub(r"[^A-Za-z_:]+", '', AdminStates.delete_spam_word.__str__()).replace('State',
 
                                                                                                        '', 1)
