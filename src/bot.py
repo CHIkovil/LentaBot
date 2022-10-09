@@ -46,6 +46,12 @@ def _get_admin_menu_keyboard():
     return keyboard
 
 
+def _get_spam_message_keyboard():
+    button = bot_types.InlineKeyboardButton(messages.bot_messages_ru['this_is_spam'], callback_data='spam')
+    keyboard = bot_types.InlineKeyboardMarkup(resize_keyboard=True).add(button)
+    return keyboard
+
+
 SUPPORT_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(
     *[commands.MAIN_COMMANDS['help'][1], commands.MAIN_COMMANDS['menu'][1]])
 END_KEYBOARD = bot_types.ReplyKeyboardMarkup(resize_keyboard=True).add(*[commands.TEMP_COMMAND['end'][1]])
@@ -837,16 +843,18 @@ def _delete_media_group(temp_folder):
 
 
 async def check_dublication_event(event):
-    messages = {message.forward.channel_post: message.grouped_id async for message in
-                _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=50) if message.forward}
-    if event.grouped_id:
-        if event.grouped_id not in set(messages.values()):
-            return False
-    else:
-        if event.message.id not in set(messages.keys()):
-            return False
+    message_uids = {"".join(
+        [f"{message.forward.channel_post}", f"{message.grouped_id}", f"{message.forward.input_chat.channel_id}"]) async
+        for message in
+        _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=75) if message.forward}
 
-    return True
+    event_id = event.messages[0].id if event.grouped_id else event.message.id
+    event_uid = "".join([f"{event_id}", f"{event.grouped_id}", f"{event.input_chat.channel_id}"])
+
+    if event_uid not in message_uids:
+        return False
+    else:
+        return True
 
 
 async def _check_text_is_spam(text):
