@@ -1,8 +1,11 @@
-from src import *
-from src import store
+import store
+
+from Support import *
 from Support import messages, states, commands
-from src.Handlers.error_handler import ErrorHandler
-from src.conf import *
+from Support.conf import *
+
+from error_handler import ErrorHandler
+
 
 _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)

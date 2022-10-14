@@ -1,4 +1,4 @@
-from src import *
+from Support import *
 
 
 class ErrorHandler(logging.Handler):
