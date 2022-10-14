@@ -90,6 +90,10 @@ menu_ru = (
     "Лови👾"
 )
 
+back_ru = (
+    "Держи🥕"
+)
+
 end_ru = (
     "Принял🤝",
     "Воспользуйся /menu"
@@ -267,6 +271,7 @@ bot_messages_ru = {
     'echo': echo_ru,
     'engineering_works': engineering_works_ru,
     'menu': menu_ru,
+    'back': back_ru,
     'admin_panel': admin_panel_ru,
     'admin_not_commands': admin_not_commands_ru,
     'admin_post': admin_post_ru,
