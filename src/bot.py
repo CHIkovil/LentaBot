@@ -25,9 +25,11 @@ def _get_button_rows(buttons):
 def _get_menu_keyboard(is_admin):
     keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = [cmd[1] for cmd in commands.MENU_COMMANDS.values()]
+
     if is_admin:
         buttons += [commands.MAIN_COMMANDS['admin_panel'][1]]
 
+    buttons += [commands.MAIN_COMMANDS['back'][1]]
     buttons_rows = _get_button_rows(buttons)
     for row in buttons_rows:
         keyboard.row(*row)
@@ -38,17 +40,12 @@ def _get_menu_keyboard(is_admin):
 def _get_admin_menu_keyboard():
     keyboard = bot_types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = [cmd[1] for cmd in commands.ADMIN_COMMANDS.values()]
+    buttons += [commands.MAIN_COMMANDS['back'][1]]
 
     buttons_rows = _get_button_rows(buttons)
     for row in buttons_rows:
-        keyboard.row(*row)
+        keyboard.row(*row, )
 
-    return keyboard
-
-
-def _get_spam_message_keyboard():
-    button = bot_types.InlineKeyboardButton(messages.bot_messages_ru['this_is_spam'], callback_data='spam')
-    keyboard = bot_types.InlineKeyboardMarkup(resize_keyboard=True).add(button)
     return keyboard
 
 
@@ -279,6 +276,7 @@ async def _enter_delete_spam_word(message: bot_types.Message, state: FSMContext)
 
 
 # USER
+
 @_DP.message_handler(filters.Text(equals=commands.MAIN_COMMANDS['menu']),
                      filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
 async def _on_menu(message: bot_types.Message, state: FSMContext):
@@ -286,6 +284,16 @@ async def _on_menu(message: bot_types.Message, state: FSMContext):
         is_admin = message.from_user.id == ADMIN_ID
         menu_keyboard = _get_menu_keyboard(is_admin)
         await message.answer(messages.bot_messages_ru['menu'], reply_markup=menu_keyboard)
+    else:
+        for text in messages.bot_messages_ru['state_if_exist']:
+            await message.answer(text)
+
+
+@_DP.message_handler(filters.Text(equals=commands.MAIN_COMMANDS['back']),
+                     filters.ChatTypeFilter(chat_type=bot_types.ChatType.PRIVATE), state='*')
+async def _on_back(message: bot_types.Message, state: FSMContext):
+    if not (await state.get_state()):
+        await message.answer(messages.bot_messages_ru['back'], reply_markup=SUPPORT_KEYBOARD)
     else:
         for text in messages.bot_messages_ru['state_if_exist']:
             await message.answer(text)
