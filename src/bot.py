@@ -6,7 +6,6 @@ from Support.conf import *
 
 from error_handler import ErrorHandler
 
-
 _BOT = Bot(token=API_BOT_TOKEN)
 _DP = Dispatcher(_BOT, storage=store.STORAGE)
 _CLIENT = TelegramClient(APP_NAME, api_id=API_ID, api_hash=API_HASH)
@@ -630,7 +629,7 @@ async def _check_channel_urls_exist(urls):
             not_exist_channel_urls.append(url)
         except Exception as err:
             not_exist_channel_urls.append(url)
-            _LOGGER.error(err)
+            _LOGGER.error(err, type(err).__name__)
     return exist_channels, not_exist_channel_urls
 
 
@@ -659,7 +658,7 @@ async def _check_bot_is_channel_admin(channel_id):
     except ChatNotFound:
         return False
     except Exception as err:
-        _LOGGER.error(err)
+        _LOGGER.error(err, type(err).__name__)
 
 
 # CLIENT
@@ -703,7 +702,7 @@ async def _send_message_channel_subscribers(post_text, channel_ids):
             except Unauthorized:
                 await store.stop_listen_for_user(user)
             except Exception as err:
-                _LOGGER.error(err)
+                _LOGGER.error(err, type(err).__name__)
 
 
 async def _notify_users_about_engineering_works(is_start):
@@ -722,7 +721,7 @@ async def _notify_users_about_engineering_works(is_start):
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
         except Exception as err:
-            _LOGGER.error(err)
+            _LOGGER.error(err, type(err).__name__)
 
 
 async def _send_and_pin_message_all_users(post_text):
@@ -736,7 +735,7 @@ async def _send_and_pin_message_all_users(post_text):
         except Unauthorized:
             await store.stop_listen_for_user(obj['user'])
         except Exception as err:
-            _LOGGER.error(err)
+            _LOGGER.error(err, type(err).__name__)
 
 
 # LISTENER
@@ -794,7 +793,7 @@ async def _forward_new_message(event):
         await store.delete_everywhere_listen_channels_to_store([listen_channel_id])
         await _reload_listener()
     except Exception as err:
-        _LOGGER.error(err)
+        _LOGGER.error(err, type(err).__name__)
 
 
 async def _on_bot_forward_messages_group(event, message, user_ids):
@@ -821,7 +820,7 @@ async def _on_bot_forward_messages_group(event, message, user_ids):
         except Unauthorized:
             await store.stop_listen_for_user(id)
         except Exception as err:
-            _LOGGER.error(err)
+            _LOGGER.error(err, type(err).__name__)
 
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, _delete_media_group, temp_folder)
@@ -836,7 +835,7 @@ async def _on_bot_forward_message(message, user_ids):
         except Unauthorized:
             await store.stop_listen_for_user(id)
         except Exception as err:
-            _LOGGER.error(err)
+            _LOGGER.error(err, type(err).__name__)
 
 
 async def _download_media(messages, temp_folder):
@@ -854,18 +853,22 @@ def _delete_media_group(temp_folder):
 
 
 async def check_dublication_event(event):
-    message_uids = {"".join(
-        [f"{message.forward.channel_post}", f"{message.grouped_id}", f"{message.forward.input_chat.channel_id}"]) async
-        for message in
-        _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=75) if message.forward}
+    try:
+        message_uids = {"".join(
+            [f"{message.forward.channel_post}", f"{message.grouped_id}", f"{message.forward.input_chat.channel_id}"])
+            async
+            for message in
+            _CLIENT.iter_messages(MAIN_TAPE_CHANNEL_ID, limit=75) if message.forward}
 
-    event_id = event.messages[0].id if event.grouped_id else event.message.id
-    event_uid = "".join([f"{event_id}", f"{event.grouped_id}", f"{event.input_chat.channel_id}"])
+        event_id = event.messages[0].id if event.grouped_id else event.message.id
+        event_uid = "".join([f"{event_id}", f"{event.grouped_id}", f"{event.input_chat.channel_id}"])
 
-    if event_uid not in message_uids:
+        if event_uid not in message_uids:
+            return False
+        else:
+            return True
+    except AttributeError:
         return False
-    else:
-        return True
 
 
 async def _check_text_is_spam(text):
